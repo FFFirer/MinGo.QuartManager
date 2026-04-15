@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  platform:
+    build:
+      context: ../../src/MinGo.Qap.Platform
+      dockerfile: Dockerfile
+    ports:
+      - "5000:80"
+    environment:
+      - ConnectionStrings__PlatformDb="Server=db;Database=PlatformDb;User=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;"
+      - Authentication__Type="None"
+      - Heartbeat__TimeoutWarningSeconds=60
+      - Heartbeat__TimeoutOfflineSeconds=90
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - ACCEPT_EULA=Y
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    restart: unless-stopped
+
+volumes:
+  sqlserver_data:

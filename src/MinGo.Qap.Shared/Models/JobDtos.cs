@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace MinGo.Qap.Shared.Models;
 
 /// <summary>
@@ -8,6 +10,7 @@ public class ScheduleDto
     /// <summary>
     /// 调度类型: once, cron, interval
     /// </summary>
+    [Required(ErrorMessage = "调度类型不能为空")]
     public string Type { get; set; } = string.Empty;
     
     /// <summary>
@@ -18,6 +21,7 @@ public class ScheduleDto
     /// <summary>
     /// 间隔秒数（Type=interval 时使用）
     /// </summary>
+    [Range(1, int.MaxValue, ErrorMessage = "间隔秒数必须大于 0")]
     public int? IntervalSeconds { get; set; }
     
     /// <summary>
@@ -50,11 +54,15 @@ public class CreateJobRequest
     /// <summary>
     /// Job 唯一标识（Name + Group）
     /// </summary>
+    [Required(ErrorMessage = "Job Key 不能为空")]
+    [StringLength(100, ErrorMessage = "Job Key 长度不能超过 100 个字符")]
     public string JobKey { get; set; } = string.Empty;
     
     /// <summary>
     /// Job 类型（来自 Manifest）
     /// </summary>
+    [Required(ErrorMessage = "Job 类型不能为空")]
+    [StringLength(100, ErrorMessage = "Job 类型长度不能超过 100 个字符")]
     public string JobType { get; set; } = string.Empty;
     
     /// <summary>
@@ -65,6 +73,7 @@ public class CreateJobRequest
     /// <summary>
     /// 调度配置
     /// </summary>
+    [Required(ErrorMessage = "调度配置不能为空")]
     public ScheduleDto Schedule { get; set; } = new();
     
     /// <summary>

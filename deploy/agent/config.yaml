@@ -1,0 +1,21 @@
+# MinGo.Qap Agent 配置文件
+
+agent:
+  clusterId: "cls-001"
+  port: 80
+  heartbeatIntervalSeconds: 30
+
+platform:
+  url: "http://platform:5000"
+
+quartz:
+  assemblyPath: ./jobs
+  jobTypes:
+    - "Sample.Jobs.EchoJob"
+  properties:
+    quartz.scheduler.instanceName: "AgentScheduler"
+    quartz.jobStore.type: "Quartz.Simpl.RAMJobStore, Quartz"
+    quartz.threadPool.maxThreads: 10
+
+logging:
+  level: "Information"

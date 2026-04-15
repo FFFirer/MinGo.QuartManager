@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useJob, useUpdateJob, useDeleteJob, useTriggerJob, usePauseJob, useResumeJob } from '../hooks/useClusters';
 import { Play, Pause, Square, Trash2, ArrowLeft, Clock, Calendar } from 'lucide-react';
-import type { UpdateJobRequest } from '../types';
+import type { UpdateJobRequest, JobDetailDto } from '../types';
 
 const JobDetailPage: React.FC = () => {
   const { clusterId, jobKey } = useParams<{ clusterId: string; jobKey: string }>();
@@ -10,7 +10,7 @@ const JobDetailPage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editParams, setEditParams] = useState<Record<string, any>>({});
 
-  const { data: job, isLoading, error } = useJob(clusterId || '', jobKey || '');
+  const { data: job, isLoading, error } = useJob(clusterId || '', jobKey || '') as { data: JobDetailDto | undefined; isLoading: boolean; error: any };
   const updateJob = useUpdateJob(clusterId || '', jobKey || '');
   const deleteJob = useDeleteJob(clusterId || '');
   const triggerJob = useTriggerJob(clusterId || '');

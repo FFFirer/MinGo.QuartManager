@@ -3,6 +3,7 @@ using MinGo.Qap.Agent.Quartz;
 using MinGo.Qap.Agent.Services;
 using MinGo.Qap.Shared.Models;
 using Quartz;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -79,6 +80,113 @@ app.MapGet("/health", async (HealthCheckService healthCheck) =>
     return status.Healthy 
         ? Results.Ok(status) 
         : Results.StatusCode(503);
+});
+
+// Job Manifest 端点
+app.MapGet("/api/jobs/manifest", (IJobRegistry jobRegistry) =>
+{
+    var manifest = jobRegistry.GetManifest();
+    return Results.Ok(manifest);
+});
+
+// Jobs 端点
+app.MapGet("/api/jobs", async (IQuartzService quartzService, [FromQuery] int page = 1, [FromQuery] int pageSize = 50, [FromQuery] string? group = null, [FromQuery] string? status = null, [FromQuery] string? keyword = null) =>
+{
+    var query = new JobQuery
+    {
+        Page = page,
+        PageSize = pageSize,
+        Group = group,
+        Status = status,
+        Keyword = keyword
+    };
+    var jobs = await quartzService.GetJobsAsync(query);
+    return Results.Ok(jobs);
+});
+
+app.MapGet("/api/jobs/{jobKey}", async (IQuartzService quartzService, string jobKey) =>
+{
+    var job = await quartzService.GetJobAsync(jobKey);
+    if (job == null) return Results.NotFound();
+    return Results.Ok(job);
+});
+
+app.MapPost("/api/jobs", async (IQuartzService quartzService, CreateJobRequest request) =>
+{
+    try
+    {
+        var job = await quartzService.CreateJobAsync(request);
+        return Results.Created($"/api/jobs/{job.JobKey}", job);
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
+app.MapPut("/api/jobs/{jobKey}", async (IQuartzService quartzService, string jobKey, UpdateJobRequest request) =>
+{
+    try
+    {
+        await quartzService.UpdateJobAsync(jobKey, request);
+        return Results.NoContent();
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
+app.MapDelete("/api/jobs/{jobKey}", async (IQuartzService quartzService, string jobKey) =>
+{
+    try
+    {
+        await quartzService.DeleteJobAsync(jobKey);
+        return Results.NoContent();
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
+app.MapPost("/api/jobs/{jobKey}/trigger", async (IQuartzService quartzService, string jobKey) =>
+{
+    try
+    {
+        await quartzService.TriggerJobAsync(jobKey);
+        return Results.Ok();
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
+app.MapPost("/api/jobs/{jobKey}/pause", async (IQuartzService quartzService, string jobKey) =>
+{
+    try
+    {
+        await quartzService.PauseJobAsync(jobKey);
+        return Results.Ok();
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
+app.MapPost("/api/jobs/{jobKey}/resume", async (IQuartzService quartzService, string jobKey) =>
+{
+    try
+    {
+        await quartzService.ResumeJobAsync(jobKey);
+        return Results.Ok();
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
 });
 
 // 注册 Job Manifest 到 Registry

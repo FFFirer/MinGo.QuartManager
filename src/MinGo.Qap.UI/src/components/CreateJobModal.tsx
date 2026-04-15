@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useCreateJob } from '../hooks/useClusters';
 import { useManifest } from '../hooks/useClusters';
-import type { CreateJobRequest, ScheduleDto, QuartzOptionsDto, JobTypeInfoDto, ParameterInfoDto } from '../types';
+import type { CreateJobRequest, ScheduleDto, QuartzOptionsDto, JobTypeInfoDto, ParameterInfoDto, ScheduleType } from '../types';
 
 interface CreateJobModalProps {
   clusterId: string;
@@ -11,9 +11,9 @@ interface CreateJobModalProps {
 }
 
 const SCHEDULE_TYPES = [
-  { value: 'once', label: 'Once', description: 'Run one time' },
-  { value: 'cron', label: 'Cron', description: 'Cron expression' },
-  { value: 'interval', label: 'Interval', description: 'Repeat interval' },
+  { value: 'Once', label: 'Once', description: 'Run one time' },
+  { value: 'Cron', label: 'Cron', description: 'Cron expression' },
+  { value: 'Interval', label: 'Interval', description: 'Repeat interval' },
 ];
 
 const MISFIRE_POLICIES = [
@@ -31,7 +31,7 @@ const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onCl
   const [selectedJobType, setSelectedJobType] = useState('');
   const [jobKey, setJobKey] = useState('');
   const [params, setParams] = useState<Record<string, any>>({});
-  const [scheduleType, setScheduleType] = useState<'once' | 'cron' | 'interval'>('cron');
+  const [scheduleType, setScheduleType] = useState<ScheduleType>('Cron');
   const [cronExpression, setCronExpression] = useState('0 0 * * *');
   const [intervalSeconds, setIntervalSeconds] = useState(60);
   const [runAt, setRunAt] = useState('');
@@ -48,7 +48,7 @@ const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onCl
       setSelectedJobType('');
       setJobKey('');
       setParams({});
-      setScheduleType('cron');
+      setScheduleType('Cron');
       setCronExpression('0 0 * * *');
       setIntervalSeconds(60);
       setRunAt('');
@@ -77,11 +77,11 @@ const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onCl
     }
     
     if (step === 3) {
-      if (scheduleType === 'cron' && !cronExpression.trim()) {
+      if (scheduleType === 'Cron' && !cronExpression.trim()) {
         setError('Please enter a cron expression');
         return false;
       }
-      if (scheduleType === 'interval' && intervalSeconds <= 0) {
+      if (scheduleType === 'Interval' && intervalSeconds <= 0) {
         setError('Please enter a valid interval');
         return false;
       }
@@ -106,9 +106,9 @@ const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onCl
 
     const schedule: ScheduleDto = {
       type: scheduleType,
-      cronExpression: scheduleType === 'cron' ? cronExpression : undefined,
-      intervalSeconds: scheduleType === 'interval' ? intervalSeconds : undefined,
-      runAt: scheduleType === 'once' && runAt ? new Date(runAt).toISOString() : undefined,
+      cronExpression: scheduleType === 'Cron' ? cronExpression : undefined,
+      intervalSeconds: scheduleType === 'Interval' ? intervalSeconds : undefined,
+      runAt: scheduleType === 'Once' && runAt ? new Date(runAt).toISOString() : undefined,
     };
 
     const options: QuartzOptionsDto = {
@@ -273,7 +273,7 @@ const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onCl
                   {SCHEDULE_TYPES.map((type) => (
                     <div
                       key={type.value}
-                      onClick={() => setScheduleType(type.value as any)}
+                      onClick={() => setScheduleType(type.value as ScheduleType)}
                       className={`p-3 rounded-lg border cursor-pointer text-center transition-colors ${
                         scheduleType === type.value
                           ? 'border-blue-500 bg-blue-500/10'
@@ -287,7 +287,7 @@ const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onCl
                 </div>
               </div>
 
-              {scheduleType === 'cron' && (
+              {scheduleType === 'Cron' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Cron Expression
@@ -308,7 +308,7 @@ const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onCl
                 </div>
               )}
 
-              {scheduleType === 'interval' && (
+              {scheduleType === 'Interval' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Interval (seconds)
@@ -326,7 +326,7 @@ const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onCl
                 </div>
               )}
 
-              {scheduleType === 'once' && (
+              {scheduleType === 'Once' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Run At (optional)
