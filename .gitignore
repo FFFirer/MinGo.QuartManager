@@ -1,0 +1,38 @@
+# IDE
+.claude/
+.codex/
+.opencode/
+.trae/
+.vs/
+.vscode/
+.idea/
+
+# Build outputs
+bin/
+obj/
+dist/
+*.dll
+*.exe
+*.pdb
+
+# Dependencies
+node_modules/
+packages/
+
+# Logs
+*.log
+logs/
+
+# Database
+*.mdf
+*.ldf
+*.db
+
+# Environment
+.env
+.env.local
+appsettings.Development.json
+
+# OS
+.DS_Store
+Thumbs.db

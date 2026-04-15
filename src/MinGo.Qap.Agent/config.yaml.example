@@ -1,0 +1,63 @@
+# MinGo.Qap Agent 配置文件
+# 所有 ${VAR_NAME} 格式的值会被替换为对应的环境变量
+# 环境变量优先级高于配置文件
+
+agent:
+  # Agent 实例 ID（可选，默认自动生成）
+  # id: agent-001
+  
+  # 所属 Cluster ID（必填）
+  # 可以从环境变量 QAP_CLUSTER_ID 设置
+  clusterId: ${CLUSTER_ID}
+  
+  # HTTP 监听端口（默认 8080）
+  # 可以从环境变量 QAP_PORT 设置
+  port: 8080
+  
+  # 心跳间隔（秒，默认 30）
+  heartbeatIntervalSeconds: 30
+
+platform:
+  # Platform API URL（必填）
+  # 可以从环境变量 QAP_PLATFORM_URL 设置
+  url: ${PLATFORM_URL:http://localhost:5000}
+
+quartz:
+  # Job 程序集路径
+  # 可以是单个 DLL 文件或包含 DLL 的目录
+  assemblyPath: ./jobs
+  
+  # 预定义的 Job 类型列表（完整类名）
+  # 这些 Job 类必须实现 IJob 接口
+  jobTypes:
+    # - Sample.Jobs.EchoJob
+    # - Sample.Jobs.DelayJob
+    # 添加你的 Job 类...
+  
+  # Quartz 属性配置（直接映射到 quartz.properties）
+  # 更多配置参考: https://www.quartz-scheduler.net/documentation/quartz-3.x/tutorial/configuration.html
+  properties:
+    # Scheduler 名称
+    quartz.scheduler.instanceName: QapAgentScheduler
+    
+    # JobStore 类型（RAMJobStore 或 ADO.NET）
+    # RAMJobStore: 内存存储，重启后 Job 丢失
+    # AdoJobStore: 数据库存储，持久化
+    quartz.jobStore.type: Quartz.Simpl.RAMJobStore, Quartz
+    
+    # 如果使用 ADO.NET JobStore，取消下面的注释并配置连接字符串:
+    # quartz.jobStore.type: Quartz.Impl.AdoJobStore.JobStoreTX, Quartz
+    # quartz.jobStore.driverDelegateType: Quartz.Impl.AdoJobStore.SqlServerDelegate, Quartz
+    # quartz.jobStore.dataSource: quartzDs
+    # quartz.dataSource.quartzDs.connectionString: Server=localhost;Database=Quartz;...
+    # quartz.dataSource.quartzDs.provider: SqlServer
+    
+    # 线程池配置
+    quartz.threadPool.maxThreads: 10
+
+logging:
+  # 日志级别: Debug, Information, Warning, Error
+  level: Information
+  
+  # 日志输出路径（可选，默认只输出到控制台）
+  # outputPath: ./logs/agent.log

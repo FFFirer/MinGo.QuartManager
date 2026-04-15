@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Sample.Jobs/Sample.Jobs.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/MinGo.Qap.Agent/MinGo.Qap.Agent.csproj" />
+    <Project Path="src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj" />
+    <Project Path="src/MinGo.Qap.Shared/MinGo.Qap.Shared.csproj" />
+  </Folder>
+</Solution>

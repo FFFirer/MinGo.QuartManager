@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  agent:
+    build:
+      context: ../../src/MinGo.Qap.Agent
+      dockerfile: Dockerfile
+    ports:
+      - "${AGENT_PORT:-8080}:80"
+    environment:
+      - QAP_CLUSTER_ID=${CLUSTER_ID}
+      - QAP_PLATFORM_URL=${PLATFORM_URL:-http://host.docker.internal:5000}
+      - QAP_PORT=80
+      - QAP_LOG_LEVEL=${LOG_LEVEL:-Information}
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./jobs:/app/jobs:ro
+    restart: unless-stopped
