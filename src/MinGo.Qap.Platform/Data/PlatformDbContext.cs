@@ -57,9 +57,9 @@ public class PlatformDbContext : DbContext
             entity.Property(e => e.ClusterId).HasMaxLength(64).IsRequired();
             entity.Property(e => e.JobKey).HasMaxLength(512).IsRequired();
             entity.Property(e => e.JobType).HasMaxLength(256).IsRequired();
-            entity.Property(e => e.Params).HasColumnType("nvarchar(max)");
-            entity.Property(e => e.Schedule).HasColumnType("nvarchar(max)");
-            entity.Property(e => e.Options).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.Params).HasColumnType("text");
+            entity.Property(e => e.Schedule).HasColumnType("text");
+            entity.Property(e => e.Options).HasColumnType("text");
             entity.Property(e => e.ErrorMessage).HasMaxLength(4000);
             
             // 外键

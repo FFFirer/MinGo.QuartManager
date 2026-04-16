@@ -12,10 +12,10 @@ builder.Services.AddSwaggerGen();
 
 // 2. 添加数据库
 var connectionString = builder.Configuration.GetConnectionString("PlatformDb") 
-    ?? "Server=localhost;Database=MinGoQap;Trusted_Connection=True;TrustServerCertificate=True";
+    ?? "Host=localhost;Database=MinGoQap;Username=postgres;Password=postgres";
 
 builder.Services.AddDbContext<PlatformDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseNpgsql(connectionString));
 
 // 3. 添加 HTTP Client
 builder.Services.AddHttpClient();
@@ -41,12 +41,34 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// 7. 自动迁移（开发环境）
-if (app.Environment.IsDevelopment())
+// 7. 数据库迁移
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
-    db.Database.Migrate();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
+    if (app.Environment.IsDevelopment())
+    {
+        // 开发环境：自动应用迁移
+        logger.LogInformation("Development environment detected. Applying pending migrations...");
+        db.Database.Migrate();
+        logger.LogInformation("Database migrations applied successfully.");
+    }
+    else
+    {
+        // 生产环境：检查是否有待处理迁移并记录警告
+        var pendingMigrations = db.Database.GetPendingMigrations().ToList();
+        if (pendingMigrations.Any())
+        {
+            logger.LogWarning("生产环境检测到有 {Count} 个待处理的数据库迁移: {Migrations}. 请手动运行 'dotnet ef database update' 应用迁移。",
+                pendingMigrations.Count,
+                string.Join(", ", pendingMigrations));
+        }
+        else
+        {
+            logger.LogInformation("数据库已是最新状态，没有待处理的迁移。");
+        }
+    }
 }
 
 app.Run();
