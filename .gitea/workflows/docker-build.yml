@@ -1,0 +1,46 @@
+name: Docker Build
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        type: string
+        default: ${{ github.repository }}
+      dockerfile:
+        type: string
+        default: ./Dockerfile
+      push:
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ inputs.image-name }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=ref,event=tag
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

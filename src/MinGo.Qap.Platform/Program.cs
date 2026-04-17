@@ -2,8 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using MinGo.Qap.Platform.BackgroundServices;
 using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.Services;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 // 1. 添加 Controllers
 builder.Services.AddControllers();
@@ -37,7 +44,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
