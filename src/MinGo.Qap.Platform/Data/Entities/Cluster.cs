@@ -24,19 +24,19 @@ public class Cluster
     public string Env { get; set; } = string.Empty;
     
     /// <summary>
-    /// Agent URL
+    /// Agent URL（已弃用，迁移期间可为空）
     /// </summary>
-    public string AgentUrl { get; set; } = string.Empty;
+    public string? AgentUrl { get; set; }
+    
+    /// <summary>
+    /// 最后心跳时间（已弃用，迁移期间保留）
+    /// </summary>
+    public DateTime? LastHeartbeat { get; set; }
     
     /// <summary>
     /// 状态
     /// </summary>
     public ClusterStatus Status { get; set; } = ClusterStatus.Pending;
-    
-    /// <summary>
-    /// 上次心跳时间
-    /// </summary>
-    public DateTime? LastHeartbeat { get; set; }
     
     /// <summary>
     /// API Token 哈希
@@ -62,6 +62,11 @@ public class Cluster
     /// 删除时间（软删除）
     /// </summary>
     public DateTime? DeletedAt { get; set; }
+    
+    /// <summary>
+    /// 关联的 Agent 实例
+    /// </summary>
+    public List<AgentInstance> AgentInstances { get; set; } = new();
     
     /// <summary>
     /// 关联的 JobDefinitions

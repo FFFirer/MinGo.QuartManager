@@ -3,12 +3,16 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useJob, useUpdateJob, useDeleteJob, useTriggerJob, usePauseJob, useResumeJob } from '../hooks/useClusters';
 import { Play, Pause, Square, Trash2, ArrowLeft, Clock, Calendar } from 'lucide-react';
 import type { UpdateJobRequest, JobDetailDto } from '../types';
+import StatusBadge from '../components/StatusBadge';
+import PageHeader from '../components/PageHeader';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const JobDetailPage: React.FC = () => {
   const { clusterId, jobKey } = useParams<{ clusterId: string; jobKey: string }>();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editParams, setEditParams] = useState<Record<string, any>>({});
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const { data: job, isLoading, error } = useJob(clusterId || '', jobKey || '') as { data: JobDetailDto | undefined; isLoading: boolean; error: any };
   const updateJob = useUpdateJob(clusterId || '', jobKey || '');
@@ -18,8 +22,6 @@ const JobDetailPage: React.FC = () => {
   const resumeJob = useResumeJob(clusterId || '');
 
   const handleDelete = async () => {
-    if (!confirm(`Are you sure you want to delete job "${jobKey}"?`)) return;
-    
     try {
       await deleteJob.mutateAsync(jobKey || '');
       navigate(`/clusters/${clusterId}/jobs`);
@@ -41,15 +43,6 @@ const JobDetailPage: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'normal': return 'bg-green-500';
-      case 'paused': return 'bg-amber-500';
-      case 'blocked': return 'bg-red-500';
-      default: return 'bg-slate-500';
-    }
-  };
-
   if (isLoading) {
     return <div className="p-8 text-slate-400">Loading...</div>;
   }
@@ -63,57 +56,51 @@ const JobDetailPage: React.FC = () => {
   }
 
   return (
+    <>
+    
     <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <Link 
-          to={`/clusters/${clusterId}/jobs`} 
-          className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 mb-2"
-        >
-          <ArrowLeft size={16} />
-          Back to Jobs
-        </Link>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-50 font-mono">{job.jobKey}</h1>
-            <span className={`status-dot ${getStatusColor(job.status)}`} />
-            <span className="text-sm text-slate-400 capitalize">{job.status}</span>
-          </div>
-          <div className="flex gap-2">
-            {job.status === 'paused' ? (
+       <PageHeader 
+          title={`${job?.jobKey ?? 'Job Details'}`}
+          backPath={`/clusters/${clusterId}/jobs`}
+          status={job ? <StatusBadge status={job.status} size="sm" showLabel={true} variant="badge" /> : null}
+          actions={(
+            <div className="flex gap-2">
+              {job.status === 'paused' ? (
+                <button
+                  onClick={() => resumeJob.mutate(job.jobKey)}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Play size={16} />
+                  Resume
+                </button>
+              ) : (
+                <button
+                  onClick={() => pauseJob.mutate(job.jobKey)}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  <Pause size={16} />
+                  Pause
+                </button>
+              )}
               <button
-                onClick={() => resumeJob.mutate(job.jobKey)}
+                onClick={() => triggerJob.mutate(job.jobKey)}
                 className="btn-primary flex items-center gap-2"
               >
                 <Play size={16} />
-                Resume
+                Trigger Now
               </button>
-            ) : (
               <button
-                onClick={() => pauseJob.mutate(job.jobKey)}
-                className="btn-secondary flex items-center gap-2"
+                onClick={() => {
+                  setIsDeleteConfirmOpen(true);
+                }}
+                className="btn-danger flex items-center gap-2"
               >
-                <Pause size={16} />
-                Pause
+                <Trash2 size={16} />
+                Delete
               </button>
-            )}
-            <button
-              onClick={() => triggerJob.mutate(job.jobKey)}
-              className="btn-primary flex items-center gap-2"
-            >
-              <Play size={16} />
-              Trigger Now
-            </button>
-            <button
-              onClick={handleDelete}
-              className="btn-danger flex items-center gap-2"
-            >
-              <Trash2 size={16} />
-              Delete
-            </button>
-          </div>
-        </div>
-      </div>
+            </div>
+          )}
+        />
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -301,7 +288,18 @@ const JobDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+     </div>
+
+      <ConfirmDialog
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        title="Delete Job"
+        message={`Are you sure you want to delete job "${jobKey}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleDelete}
+      />
+    </>
   );
 };
 

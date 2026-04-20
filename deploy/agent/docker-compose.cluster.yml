@@ -1,0 +1,58 @@
+version: '3.8'
+
+# 多 Agent 实例部署配置
+# 使用示例: docker-compose -f docker-compose.cluster.yml up -d --scale agent=3
+
+services:
+  agent:
+    build:
+      context: ../../src/MinGo.Qap.Agent
+      dockerfile: Dockerfile
+    expose:
+      - "80"
+    environment:
+      - QAP_PLATFORM_URL=${PLATFORM_URL:-http://host.docker.internal:5000}
+      - QAP_PORT=80
+      - QAP_LOG_LEVEL=${LOG_LEVEL:-Information}
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./jobs:/app/jobs:ro
+    restart: unless-stopped
+    networks:
+      - qap-network
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+  # 可选：用于本地开发的 PostgreSQL（Quartz 集群模式需要）
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: quartz
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quartz123}
+      POSTGRES_DB: quartz
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - qap-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quartz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  qap-network:
+    driver: bridge
+
+volumes:
+  postgres-data:

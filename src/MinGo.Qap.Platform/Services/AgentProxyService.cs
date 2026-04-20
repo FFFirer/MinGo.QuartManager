@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Http;
 using MinGo.Qap.Platform.Data;
+using MinGo.Qap.Shared.Enums;
 using MinGo.Qap.Shared.Models;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -25,49 +27,76 @@ public class AgentProxyService : IAgentProxyService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly PlatformDbContext _dbContext;
     private readonly ILogger<AgentProxyService> _logger;
+    private readonly IAgentInstanceService _agentInstanceService;
+    private readonly IAgentSelectionStrategy _selectionStrategy;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    
+    private const string AgentInstanceIdHeader = "X-Agent-Instance-Id";
 
     public AgentProxyService(
         IHttpClientFactory httpClientFactory,
         PlatformDbContext dbContext,
-        ILogger<AgentProxyService> logger)
+        ILogger<AgentProxyService> logger,
+        IAgentInstanceService agentInstanceService,
+        IAgentSelectionStrategy selectionStrategy,
+        IHttpContextAccessor httpContextAccessor)
     {
         _httpClientFactory = httpClientFactory;
         _dbContext = dbContext;
         _logger = logger;
+        _agentInstanceService = agentInstanceService;
+        _selectionStrategy = selectionStrategy;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<T?> GetAsync<T>(string clusterId, string path)
     {
-        var agentUrl = await GetAgentUrlAsync(clusterId);
-        var client = CreateClient(agentUrl);
+        var agentInstance = await GetAgentInstanceAsync(clusterId);
+        if (agentInstance == null)
+        {
+            throw new AgentException($"No healthy agent instances available for cluster {clusterId}", "NO_HEALTHY_INSTANCES");
+        }
         
+        var client = CreateClient(agentInstance.Url);
         var response = await client.GetAsync($"/api/{path}");
         return await HandleResponse<T>(response, clusterId, path);
     }
 
     public async Task<T?> PostAsync<T>(string clusterId, string path, object body)
     {
-        var agentUrl = await GetAgentUrlAsync(clusterId);
-        var client = CreateClient(agentUrl);
+        var agentInstance = await GetAgentInstanceAsync(clusterId);
+        if (agentInstance == null)
+        {
+            throw new AgentException($"No healthy agent instances available for cluster {clusterId}", "NO_HEALTHY_INSTANCES");
+        }
         
+        var client = CreateClient(agentInstance.Url);
         var response = await client.PostAsJsonAsync($"/api/{path}", body);
         return await HandleResponse<T>(response, clusterId, path);
     }
 
     public async Task<T?> PutAsync<T>(string clusterId, string path, object body)
     {
-        var agentUrl = await GetAgentUrlAsync(clusterId);
-        var client = CreateClient(agentUrl);
+        var agentInstance = await GetAgentInstanceAsync(clusterId);
+        if (agentInstance == null)
+        {
+            throw new AgentException($"No healthy agent instances available for cluster {clusterId}", "NO_HEALTHY_INSTANCES");
+        }
         
+        var client = CreateClient(agentInstance.Url);
         var response = await client.PutAsJsonAsync($"/api/{path}", body);
         return await HandleResponse<T>(response, clusterId, path);
     }
 
     public async Task DeleteAsync(string clusterId, string path)
     {
-        var agentUrl = await GetAgentUrlAsync(clusterId);
-        var client = CreateClient(agentUrl);
+        var agentInstance = await GetAgentInstanceAsync(clusterId);
+        if (agentInstance == null)
+        {
+            throw new AgentException($"No healthy agent instances available for cluster {clusterId}", "NO_HEALTHY_INSTANCES");
+        }
         
+        var client = CreateClient(agentInstance.Url);
         var response = await client.DeleteAsync($"/api/{path}");
         
         if (!response.IsSuccessStatusCode)
@@ -87,9 +116,13 @@ public class AgentProxyService : IAgentProxyService
     {
         try
         {
-            var agentUrl = await GetAgentUrlAsync(clusterId);
-            var client = CreateClient(agentUrl, shortTimeout: true);
+            var agentInstance = await GetAgentInstanceAsync(clusterId);
+            if (agentInstance == null)
+            {
+                return false;
+            }
             
+            var client = CreateClient(agentInstance.Url, shortTimeout: true);
             var response = await client.GetAsync("/health");
             return response.IsSuccessStatusCode;
         }
@@ -101,15 +134,53 @@ public class AgentProxyService : IAgentProxyService
 
     #region Helper Methods
 
-    private async Task<string> GetAgentUrlAsync(string clusterId)
+    private async Task<AgentInstanceDto?> GetAgentInstanceAsync(string clusterId)
     {
-        var cluster = await _dbContext.Clusters.FindAsync(clusterId);
-        if (cluster == null)
+        // 检查是否通过请求头指定了实例 ID
+        var instanceId = GetRequestedInstanceId();
+        if (!string.IsNullOrEmpty(instanceId))
         {
-            throw new ArgumentException($"Cluster not found: {clusterId}");
+            var instance = await _agentInstanceService.GetInstanceAsync(instanceId);
+            if (instance != null && instance.ClusterId == clusterId && instance.Status == AgentStatus.Online)
+            {
+                _logger.LogDebug("Using requested agent instance {InstanceId} for cluster {ClusterId}", instanceId, clusterId);
+                return instance;
+            }
+            else
+            {
+                _logger.LogWarning("Requested agent instance {InstanceId} not found, not online, or not part of cluster {ClusterId}", instanceId, clusterId);
+            }
         }
-
-        return cluster.AgentUrl;
+        
+        // 获取集群的健康实例
+        var healthyInstances = await _agentInstanceService.GetHealthyInstancesAsync(clusterId);
+        if (healthyInstances.Count == 0)
+        {
+            _logger.LogWarning("No healthy agent instances available for cluster {ClusterId}", clusterId);
+            return null;
+        }
+        
+        // 使用选择策略选择实例
+        var selectedInstance = _selectionStrategy.SelectInstance(clusterId, healthyInstances);
+        if (selectedInstance != null)
+        {
+            _logger.LogDebug("Selected agent instance {InstanceId} ({Url}) for cluster {ClusterId} using {Strategy} strategy", 
+                selectedInstance.Id, selectedInstance.Url, clusterId, _selectionStrategy.Name);
+        }
+        
+        return selectedInstance;
+    }
+    
+    private string? GetRequestedInstanceId()
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext?.Request?.Headers != null && 
+            httpContext.Request.Headers.TryGetValue(AgentInstanceIdHeader, out var instanceIdHeader))
+        {
+            return instanceIdHeader.ToString();
+        }
+        
+        return null;
     }
 
     private HttpClient CreateClient(string agentUrl, bool shortTimeout = false)

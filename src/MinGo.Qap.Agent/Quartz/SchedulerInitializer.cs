@@ -66,6 +66,18 @@ public class SchedulerInitializer
         // 基础属性
         var instanceName = _quartzConfig["quartz.scheduler.instanceName"] ?? "QapAgentScheduler";
         properties["quartz.scheduler.instanceName"] = instanceName;
+        
+        // Quartz 实例 ID（集群中必须唯一）
+        var instanceId = _quartzConfig["quartz.scheduler.instanceId"];
+        if (string.IsNullOrEmpty(instanceId))
+        {
+            // 如果没有配置，使用 AUTO 让 Quartz 自动生成
+            properties["quartz.scheduler.instanceId"] = "AUTO";
+        }
+        else
+        {
+            properties["quartz.scheduler.instanceId"] = instanceId;
+        }
 
         // JobStore 类型
         var jobStoreType = _quartzConfig["quartz.jobStore.type"] ?? "Quartz.Simpl.RAMJobStore, Quartz";
@@ -105,6 +117,24 @@ public class SchedulerInitializer
             if (!string.IsNullOrEmpty(tablePrefix))
             {
                 properties["quartz.jobStore.tablePrefix"] = tablePrefix;
+            }
+            
+            // 集群配置
+            var clustered = _quartzConfig["quartz.jobStore.clustered"];
+            if (!string.IsNullOrEmpty(clustered) && clustered.ToLowerInvariant() == "true")
+            {
+                properties["quartz.jobStore.clustered"] = "true";
+                
+                // 集群检查间隔（毫秒），默认 20000
+                var checkinInterval = _quartzConfig["quartz.jobStore.clusterCheckinInterval"] ?? "20000";
+                properties["quartz.jobStore.clusterCheckinInterval"] = checkinInterval;
+                
+                // 使用数据库锁
+                properties["quartz.jobStore.useProperties"] = "false";
+                properties["quartz.jobStore.misfireThreshold"] = "60000";
+                
+                _logger.LogInformation("Quartz cluster mode enabled with instanceId: {InstanceId}", 
+                    properties["quartz.scheduler.instanceId"]);
             }
         }
 

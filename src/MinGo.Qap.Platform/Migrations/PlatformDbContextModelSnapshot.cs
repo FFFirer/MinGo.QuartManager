@@ -17,10 +17,74 @@ namespace MinGo.Qap.Platform.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.4")
+                .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.AgentInstance", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AgentVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ClusterId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastHeartbeat")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("QuartzInstanceId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TokenHash")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClusterId");
+
+                    b.HasIndex("LastHeartbeat");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("ClusterId", "Url")
+                        .IsUnique();
+
+                    b.ToTable("AgentInstances", (string)null);
+                });
 
             modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.Cluster", b =>
                 {
@@ -29,7 +93,6 @@ namespace MinGo.Qap.Platform.Migrations
                         .HasColumnType("character varying(64)");
 
                     b.Property<string>("AgentUrl")
-                        .IsRequired()
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
 
@@ -133,6 +196,17 @@ namespace MinGo.Qap.Platform.Migrations
                     b.ToTable("JobDefinitions", (string)null);
                 });
 
+            modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.AgentInstance", b =>
+                {
+                    b.HasOne("MinGo.Qap.Platform.Data.Entities.Cluster", "Cluster")
+                        .WithMany("AgentInstances")
+                        .HasForeignKey("ClusterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cluster");
+                });
+
             modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.JobDefinition", b =>
                 {
                     b.HasOne("MinGo.Qap.Platform.Data.Entities.Cluster", "Cluster")
@@ -146,6 +220,8 @@ namespace MinGo.Qap.Platform.Migrations
 
             modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.Cluster", b =>
                 {
+                    b.Navigation("AgentInstances");
+
                     b.Navigation("JobDefinitions");
                 });
 #pragma warning restore 612, 618

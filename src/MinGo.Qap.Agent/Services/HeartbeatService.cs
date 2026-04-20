@@ -1,5 +1,6 @@
 using MinGo.Qap.Shared.Models;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace MinGo.Qap.Agent.Services;
 
@@ -9,28 +10,22 @@ namespace MinGo.Qap.Agent.Services;
 public class HeartbeatService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IConfiguration _config;
     private readonly ILogger<HeartbeatService> _logger;
-    private readonly TimeSpan _interval;
-
+    private TimeSpan _interval = TimeSpan.FromSeconds(30);
+    private bool _hasValidRegistration = false;
+    
     public HeartbeatService(
         IServiceProvider serviceProvider,
-        IConfiguration config,
         ILogger<HeartbeatService> logger)
     {
         _serviceProvider = serviceProvider;
-        _config = config;
         _logger = logger;
-        
-        // 从配置读取心跳间隔，默认 30 秒
-        var intervalSeconds = _config.GetValue<int?>("agent:heartbeatIntervalSeconds") ?? 30;
-        _interval = TimeSpan.FromSeconds(intervalSeconds);
     }
-
+    
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Heartbeat service started. Interval: {Interval}s", _interval.TotalSeconds);
-
+        _logger.LogInformation("Heartbeat service started");
+        
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -41,62 +36,147 @@ public class HeartbeatService : BackgroundService
             {
                 _logger.LogError(ex, "Failed to send heartbeat");
             }
-
+            
             await Task.Delay(_interval, stoppingToken);
         }
-
+        
         _logger.LogInformation("Heartbeat service stopped");
     }
-
+    
     private async Task SendHeartbeatAsync(CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
         
+        var registrationService = scope.ServiceProvider.GetRequiredService<IAgentRegistrationService>();
         var quartzService = scope.ServiceProvider.GetRequiredService<IQuartzService>();
         var httpClient = scope.ServiceProvider.GetRequiredService<HttpClient>();
         var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-
-        var platformUrl = config["platform:url"] ?? "http://localhost:5000";
-        var clusterId = config["agent:clusterId"] ?? throw new InvalidOperationException("ClusterId not configured");
-
+        
+        var registrationInfo = registrationService.GetRegistrationInfo();
+        if (registrationInfo == null)
+        {
+            if (!_hasValidRegistration)
+            {
+                _logger.LogWarning("No registration information available. Heartbeat skipped.");
+            }
+            else
+            {
+                _logger.LogError("Registration information lost. Heartbeat skipped.");
+                _hasValidRegistration = false;
+            }
+            return;
+        }
+        
+        // 更新心跳间隔（如果与当前不同）
+        var newInterval = TimeSpan.FromSeconds(registrationInfo.HeartbeatIntervalSeconds);
+        if (_interval != newInterval)
+        {
+            _logger.LogInformation("Heartbeat interval changed from {OldInterval}s to {NewInterval}s", 
+                _interval.TotalSeconds, newInterval.TotalSeconds);
+            _interval = newInterval;
+        }
+        
         // 收集心跳数据
         var schedulerState = await quartzService.GetSchedulerStateAsync();
-        var heartbeat = BuildHeartbeat(schedulerState);
-
-        // 发送心跳
-        var response = await httpClient.PostAsJsonAsync(
-            $"{platformUrl}/api/clusters/{clusterId}/heartbeat",
-            heartbeat,
-            cancellationToken);
-
-        if (response.IsSuccessStatusCode)
+        var heartbeatRequest = BuildHeartbeatRequest(schedulerState);
+        
+        // 发送心跳到实例级别端点
+        var platformUrl = registrationInfo.PlatformApiBaseUrl;
+        var agentId = registrationInfo.AgentId;
+        
+        try
         {
-            _logger.LogDebug("Heartbeat sent successfully");
+            var response = await httpClient.PostAsJsonAsync(
+                $"{platformUrl}/api/agents/{agentId}/heartbeat",
+                heartbeatRequest,
+                cancellationToken);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var heartbeatResponse = await response.Content.ReadFromJsonAsync<AgentHeartbeatResponse>(cancellationToken);
+                if (heartbeatResponse?.Success == true)
+                {
+                    _logger.LogDebug("Heartbeat sent successfully to agent {AgentId}", agentId);
+                    _hasValidRegistration = true;
+                }
+                else
+                {
+                    var error = heartbeatResponse?.Message ?? "Unknown error";
+                    _logger.LogWarning("Heartbeat response indicates failure: {Error}", error);
+                    _hasValidRegistration = false;
+                }
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Heartbeat failed: {StatusCode} - {Error}", response.StatusCode, error);
+                _hasValidRegistration = false;
+                
+                // 如果是未授权或未找到，可能需要重新注册
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized || 
+                    response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _logger.LogWarning("Heartbeat endpoint rejected the request. Registration may be invalid.");
+                }
+            }
         }
-        else
+        catch (HttpRequestException ex)
         {
-            var error = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogWarning("Heartbeat failed: {StatusCode} - {Error}", response.StatusCode, error);
+            _logger.LogError(ex, "Network error while sending heartbeat to platform");
+            _hasValidRegistration = false;
         }
     }
-
-    private HeartbeatDto BuildHeartbeat(SchedulerStateDto schedulerState)
+    
+    private AgentHeartbeatRequest BuildHeartbeatRequest(SchedulerStateDto schedulerState)
     {
         var process = Process.GetCurrentProcess();
+        var uptimeSeconds = (long)(DateTime.UtcNow - process.StartTime.ToUniversalTime()).TotalSeconds;
         
-        return new HeartbeatDto
+        // 构建指标 JSON
+        var metrics = new
         {
-            Timestamp = DateTime.UtcNow,
-            AgentVersion = GetType().Assembly.GetName().Version?.ToString() ?? "1.0.0",
-            UptimeSeconds = (long)(DateTime.UtcNow - process.StartTime.ToUniversalTime()).TotalSeconds,
-            SchedulerStatus = schedulerState.Status,
-            Jobs = schedulerState.JobCounts,
-            System = new SystemMetricsDto
+            timestamp = DateTime.UtcNow,
+            uptimeSeconds,
+            schedulerStatus = schedulerState.Status,
+            jobCounts = schedulerState.JobCounts,
+            system = new
             {
-                MemoryUsedMb = process.WorkingSet64 / 1024 / 1024,
-                MemoryTotalMb = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024,
-                CpuPercent = 0 // V1 简化，不实现 CPU 监控
+                memoryUsedMb = process.WorkingSet64 / 1024 / 1024,
+                memoryTotalMb = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024,
+                cpuPercent = 0
             }
         };
+        
+        return new AgentHeartbeatRequest
+        {
+            AgentId = GetAgentIdFromRegistration(),
+            QuartzInstanceId = GetQuartzInstanceId(),
+            AgentVersion = GetAgentVersion(),
+            Status = schedulerState.Status,
+            Metrics = JsonSerializer.Serialize(metrics)
+        };
+    }
+    
+    private string GetAgentIdFromRegistration()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var registrationService = scope.ServiceProvider.GetRequiredService<IAgentRegistrationService>();
+        var registrationInfo = registrationService.GetRegistrationInfo();
+        return registrationInfo?.AgentId ?? string.Empty;
+    }
+    
+    private string GetAgentVersion()
+    {
+        var assembly = System.Reflection.Assembly.GetEntryAssembly();
+        var version = assembly?.GetName().Version?.ToString() ?? "1.0.0";
+        return version;
+    }
+    
+    private string? GetQuartzInstanceId()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var registrationService = scope.ServiceProvider.GetRequiredService<IAgentRegistrationService>();
+        var registrationInfo = registrationService.GetRegistrationInfo();
+        return registrationInfo?.QuartzInstanceId;
     }
 }

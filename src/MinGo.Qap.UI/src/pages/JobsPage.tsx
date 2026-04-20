@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useJobs, useTriggerJob, usePauseJob, useResumeJob, useDeleteJob } from '../hooks/useClusters';
-import { Play, Pause, Square, Trash2 } from 'lucide-react';
+import { Play, Pause, Trash2 } from 'lucide-react';
 import CreateJobModal from '../components/CreateJobModal';
+import StatusBadge from '../components/StatusBadge';
+import PageHeader from '../components/PageHeader';
+import DataTable from '../components/DataTable';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const JobsPage: React.FC = () => {
   const { clusterId } = useParams<{ clusterId: string }>();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<string | null>(null);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
   const pageSize = 20;
 
   const { data: jobs, isLoading, error } = useJobs(clusterId || '', page, pageSize);
@@ -17,125 +23,124 @@ const JobsPage: React.FC = () => {
   const resumeJob = useResumeJob(clusterId || '');
   const deleteJob = useDeleteJob(clusterId || '');
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'normal': return 'bg-green-500';
-      case 'paused': return 'bg-amber-500';
-      case 'blocked': return 'bg-red-500';
-      default: return 'bg-slate-500';
-    }
-  };
-
   if (isLoading) {
-    return <div className="p-8 text-slate-400">Loading...</div>;
+    return <div className="p-8">Loading...</div>;
   }
 
   if (error) {
-    return <div className="p-8 text-red-400">Error: {error.message}</div>;
+    return <div className="p-8">Error: {error.message}</div>;
   }
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <Link to="/" className="text-sm text-blue-400 hover:text-blue-300 mb-1 block">
-            ← Back to Clusters
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-50">Jobs</h1>
-        </div>
-        <button 
-          onClick={() => setIsCreateModalOpen(true)}
-          className="btn-primary"
-        >
-          + Create Job
-        </button>
-      </div>
-
-      <div className="card overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-slate-700">
-              <th className="table-header">Job Key</th>
-              <th className="table-header">Type</th>
-              <th className="table-header">Status</th>
-              <th className="table-header">Schedule</th>
-              <th className="table-header">Next Run</th>
-              <th className="table-header">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs?.map((job: any) => (
-              <tr 
-                key={job.jobKey} 
-                className="border-b border-slate-700/50 hover:bg-slate-800/50 cursor-pointer"
-                onClick={() => navigate(`/clusters/${clusterId}/jobs/${job.jobKey}`)}
-              >
-                <td className="table-cell font-mono text-xs">{job.jobKey}</td>
-                <td className="table-cell">{job.jobType}</td>
-                <td className="table-cell">
-                  <span className="flex items-center">
-                    <span className={`status-dot ${getStatusColor(job.status)}`} />
-                    {job.status}
-                  </span>
-                </td>
-                <td className="table-cell text-xs">
-                  {job.scheduleType === 'cron' ? job.cronExpression : job.scheduleType}
-                </td>
-                <td className="table-cell text-xs">
-                  {job.nextFireTime ? new Date(job.nextFireTime).toLocaleString() : '-'}
-                </td>
-                <td className="table-cell">
-                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      className="p-1 hover:bg-slate-700 rounded"
-                      title="Trigger now"
-                      onClick={() => triggerJob.mutate(job.jobKey)}
-                    >
-                      <Play size={16} className="text-green-400" />
-                    </button>
-                    {job.status === 'paused' ? (
-                      <button
-                        className="p-1 hover:bg-slate-700 rounded"
-                        title="Resume"
-                        onClick={() => resumeJob.mutate(job.jobKey)}
-                      >
-                        <Play size={16} className="text-blue-400" />
-                      </button>
-                    ) : (
-                      <button
-                        className="p-1 hover:bg-slate-700 rounded"
-                        title="Pause"
-                        onClick={() => pauseJob.mutate(job.jobKey)}
-                      >
-                        <Pause size={16} className="text-amber-400" />
-                      </button>
-                    )}
-                    <button
-                      className="p-1 hover:bg-slate-700 rounded"
-                      title="Delete"
-                      onClick={() => {
-                        if (confirm(`Delete job ${job.jobKey}?`)) {
-                          deleteJob.mutate(job.jobKey);
-                        }
-                      }}
-                    >
-                      <Trash2 size={16} className="text-red-400" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {jobs?.length === 0 && (
-          <div className="text-center py-8 text-slate-400">
-            No jobs found. Create one to get started.
-          </div>
+      <PageHeader 
+        title="Jobs"
+        subtitle={clusterId ? `Cluster: ${clusterId}` : undefined}
+        backPath="/"
+        actions={(
+          <button 
+            onClick={() => setIsCreateModalOpen(true)}
+            className="btn-primary"
+          >
+            + Create Job
+          </button>
         )}
-      </div>
+      />
 
-      {/* Create Job Modal */}
+      <DataTable
+        columns={[
+          {
+            header: 'Job Key',
+            accessor: 'jobKey',
+            width: 120,
+            align: 'left'
+          },
+          {
+            header: 'Type',
+            accessor: 'jobType',
+            width: 100,
+            align: 'left'
+          },
+          {
+            header: 'Status',
+            accessor: (row: any) => (
+              <StatusBadge status={row.status} size="sm" showLabel={true} variant="inline" />
+            ),
+            width: 100,
+            align: 'center'
+          },
+          {
+            header: 'Schedule',
+            accessor: (row: any) => 
+              row.scheduleType === 'cron' ? row.cronExpression : row.scheduleType,
+            width: 120,
+            align: 'left'
+          },
+          {
+            header: 'Next Run',
+            accessor: (row: any) => 
+              row.nextFireTime ? new Date(row.nextFireTime).toLocaleString() : '-',
+            width: 140,
+            align: 'left'
+          },
+          {
+            header: 'Actions',
+            accessor: (row: any) => (
+              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                <button
+                  className="p-1 hover:bg-slate-700 rounded"
+                  title="Trigger now"
+                  onClick={() => triggerJob.mutate(row.jobKey)}
+                >
+                  <Play size={16} className="text-green-400" />
+                </button>
+                {row.status === 'paused' ? (
+                  <button
+                    className="p-1 hover:bg-slate-700 rounded"
+                    title="Resume"
+                    onClick={() => resumeJob.mutate(row.jobKey)}
+                  >
+                    <Play size={16} className="text-blue-400" />
+                  </button>
+                ) : (
+                  <button
+                    className="p-1 hover:bg-slate-700 rounded"
+                    title="Pause"
+                    onClick={() => pauseJob.mutate(row.jobKey)}
+                  >
+                    <Pause size={16} className="text-amber-400" />
+                  </button>
+                )}
+                <button
+                  className="p-1 hover:bg-slate-700 rounded"
+                  title="Delete"
+                  onClick={() => {
+                    setDeleteConfirmJobId(row.jobKey);
+                  }}
+                >
+                  <Trash2 size={16} className="text-red-400" />
+                </button>
+              </div>
+            ),
+            width: 120,
+            align: 'center'
+          }
+        ]}
+        data={jobs || []}
+        loading={isLoading}
+        emptyMessage="No jobs found. Create one to get started."
+        onRowClick={(job: any) => navigate(`/clusters/${clusterId}/jobs/${job.jobKey}`)}
+        showBorder
+        showHeader
+        className="w-full"
+      />
+
+      {jobs?.length === 0 && (
+        <div className="text-center py-8 text-slate-400">
+          No jobs found. Create one to get started.
+        </div>
+      )}
+
       {clusterId && (
         <CreateJobModal
           clusterId={clusterId}

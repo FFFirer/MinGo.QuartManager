@@ -23,7 +23,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<PlatformDb
         var connectionString = configuration.GetConnectionString("PlatformDb");
 
         var optionsBuilder = new DbContextOptionsBuilder<PlatformDbContext>();
-        optionsBuilder.UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(""));
+        optionsBuilder.UseNpgsql(connectionString);
 
         return new PlatformDbContext(optionsBuilder.Options);
     }

@@ -50,6 +50,21 @@ public class AgentSettings
     /// 心跳间隔（秒，默认 30）
     /// </summary>
     public int HeartbeatIntervalSeconds { get; set; } = 30;
+    
+    /// <summary>
+    /// 注册最大尝试次数（默认 5）
+    /// </summary>
+    public int RegistrationMaxAttempts { get; set; } = 5;
+    
+    /// <summary>
+    /// 注册重试延迟（秒，默认 5）
+    /// </summary>
+    public int RegistrationRetryDelaySeconds { get; set; } = 5;
+    
+    /// <summary>
+    /// 是否启用集群模式（默认 false）
+    /// </summary>
+    public bool ClusterMode { get; set; } = false;
 }
 
 /// <summary>
@@ -61,6 +76,11 @@ public class PlatformSettings
     /// Platform API URL（必填）
     /// </summary>
     public string Url { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// API Token（用于认证）
+    /// </summary>
+    public string ApiToken { get; set; } = string.Empty;
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using MinGo.Qap.Shared.Models;
+using Microsoft.Extensions.Configuration;
 using Quartz;
 using Quartz.Impl.Matchers;
 
@@ -31,6 +32,10 @@ public class SchedulerStateDto
     public DateTimeOffset? RunningSince { get; set; }
     public int NumberOfJobsExecuted { get; set; }
     public JobCountsDto JobCounts { get; set; } = new();
+    /// <summary>
+    /// 是否在集群模式下运行
+    /// </summary>
+    public bool IsClustered { get; set; }
 }
 
 /// <summary>
@@ -42,17 +47,20 @@ public class QuartzService : IQuartzService
     private readonly IJobConverter _converter;
     private readonly IJobRegistry _registry;
     private readonly ILogger<QuartzService> _logger;
+    private readonly IConfiguration _configuration;
 
     public QuartzService(
         IScheduler scheduler,
         IJobConverter converter,
         IJobRegistry registry,
-        ILogger<QuartzService> logger)
+        ILogger<QuartzService> logger,
+        IConfiguration configuration)
     {
         _scheduler = scheduler;
         _converter = converter;
         _registry = registry;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public async Task<JobDetailDto> CreateJobAsync(CreateJobRequest request)
@@ -331,6 +339,20 @@ public class QuartzService : IQuartzService
             }
         }
 
+        // 判断是否运行在集群模式
+        bool isClustered = false;
+        var clusteredConfig = _configuration["quartz:quartz.jobStore.clustered"] ?? 
+                              _configuration["quartz.jobStore.clustered"];
+        if (!string.IsNullOrEmpty(clusteredConfig) && clusteredConfig.ToLowerInvariant() == "true")
+        {
+            isClustered = true;
+        }
+        else
+        {
+            // 备用检查：JobStore 类型是否为 AdoJobStore
+            isClustered = metaData.JobStoreType?.FullName?.Contains("AdoJobStore") == true;
+        }
+        
         return new SchedulerStateDto
         {
             Name = _scheduler.SchedulerName,
@@ -345,7 +367,8 @@ public class QuartzService : IQuartzService
                 Paused = pausedCount,
                 Blocked = blockedCount,
                 Executing = 0 // V1 简化，不统计执行中
-            }
+            },
+            IsClustered = isClustered
         };
     }
 

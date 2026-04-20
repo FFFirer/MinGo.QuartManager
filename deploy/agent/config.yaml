@@ -1,12 +1,28 @@
 # MinGo.Qap Agent 配置文件
+# 默认配置使用 RAMJobStore（非集群模式）
+# 如需启用集群模式，请设置 agent.clusterMode: true
+# 并参考 config-cluster.yaml 配置数据库连接
 
 agent:
+  # 集群 ID（必填）
   clusterId: "cls-001"
+  # Agent 实例 ID（可选，不填则自动生成 uuid）
+  id: ""
+  # HTTP 监听端口
   port: 80
+  # 心跳间隔（秒）
   heartbeatIntervalSeconds: 30
+  # 注册最大尝试次数（默认 5）
+  registrationMaxAttempts: 5
+  # 注册重试延迟（秒，默认 5）
+  registrationRetryDelaySeconds: 5
+  # 是否启用集群模式（默认 false，设为 true 以使用共享数据库）
+  clusterMode: false
 
 platform:
   url: "http://platform:5000"
+  # API Token（用于认证，可从环境变量读取）
+  apiToken: ""
 
 quartz:
   assemblyPath: ./jobs
@@ -19,3 +35,9 @@ quartz:
 
 logging:
   level: "Information"
+
+# 环境特定配置示例：
+# 开发环境: agent.clusterMode: false
+# 生产环境: agent.clusterMode: true（如需高可用）
+# 生产环境 PostgreSQL 连接示例：
+# quartz.properties.quartz.dataSource.default.connectionString: "Host=prod-postgres;Port=5432;Database=quartz;Username=postgres;Password=${POSTGRES_PASSWORD}"

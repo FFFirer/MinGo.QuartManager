@@ -1,0 +1,69 @@
+# MinGo.Qap Agent 集群模式配置文件示例
+# 此配置适用于 PostgreSQL 数据库的 Quartz 集群模式
+
+agent:
+  # 集群 ID（必填）
+  clusterId: "cls-001"
+  # Agent 实例 ID（可选，不填则自动生成 uuid）
+  id: ""
+  # HTTP 监听端口
+  port: 80
+  # 心跳间隔（秒）
+  heartbeatIntervalSeconds: 30
+  # 注册最大尝试次数（默认 5）
+  registrationMaxAttempts: 5
+  # 注册重试延迟（秒，默认 5）
+  registrationRetryDelaySeconds: 5
+  # 启用集群模式
+  clusterMode: true
+
+platform:
+  url: "http://platform:5000"
+  # API Token（用于认证，可从环境变量读取）
+  apiToken: ""
+
+quartz:
+  assemblyPath: ./jobs
+  jobTypes:
+    - "Sample.Jobs.EchoJob"
+  properties:
+    # Scheduler 基础配置
+    quartz.scheduler.instanceName: "QapAgentCluster"
+    quartz.scheduler.instanceId: "AUTO"  # 集群中自动生成唯一 ID
+    
+    # JobStore 配置 - 使用 PostgreSQL AdoJobStore
+    quartz.jobStore.type: "Quartz.Impl.AdoJobStore.JobStoreTX, Quartz"
+    quartz.jobStore.driverDelegateType: "Quartz.Impl.AdoJobStore.StdAdoDelegate, Quartz"
+    quartz.jobStore.tablePrefix: "QRTZ_"
+    quartz.jobStore.dataSource: "default"
+    quartz.jobStore.useProperties: "false"
+    quartz.jobStore.misfireThreshold: "60000"
+    
+    # 集群配置
+    quartz.jobStore.clustered: "true"
+    quartz.jobStore.clusterCheckinInterval: "20000"
+    
+    # 数据源配置
+    quartz.dataSource.default.provider: "Npgsql"
+    quartz.dataSource.default.connectionString: "Host=postgres;Port=5432;Database=quartz;Username=postgres;Password=${POSTGRES_PASSWORD}"
+    
+    # 线程池配置
+    quartz.threadPool.type: "Quartz.Simpl.SimpleThreadPool, Quartz"
+    quartz.threadPool.threadCount: "10"
+    quartz.threadPool.threadPriority: "Normal"
+    
+    # 序列化配置
+    quartz.serializer.type: "json"
+    
+    # 其他优化配置
+    quartz.jobStore.acquireTriggersWithinLock: "true"
+    quartz.jobStore.lockHandler.type: "Quartz.Impl.AdoJobStore.UpdateLockRowSemaphore, Quartz"
+
+logging:
+  level: "Information"
+
+# 环境变量覆盖：
+# - POSTGRES_PASSWORD: PostgreSQL 密码（必需）
+# - QAP_API_TOKEN: Agent 认证令牌
+# - QAP_CLUSTER_ID: 覆盖 agent.clusterId
+# - QAP_PLATFORM_URL: 覆盖 platform.url

@@ -1,5 +1,21 @@
 # React + TypeScript + Vite
 
+This project uses **pnpm** as the package manager.
+
+## Package Manager
+
+This project uses **pnpm** as the package manager. Install dependencies with:
+
+```bash
+pnpm install
+```
+
+Available commands:
+- `pnpm dev` - Start development server
+- `pnpm build` - Build for production
+- `pnpm lint` - Run ESLint
+- `pnpm preview` - Preview production build
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

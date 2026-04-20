@@ -1,3 +1,4 @@
+using System;
 using Microsoft.AspNetCore.Mvc;
 using MinGo.Qap.Platform.Services;
 using MinGo.Qap.Shared.Models;
@@ -96,8 +97,9 @@ public class ClustersController : ControllerBase
     }
 
     /// <summary>
-    /// 接收心跳
+    /// 接收心跳（已弃用，请使用 Agent 实例级别心跳）
     /// </summary>
+    [Obsolete("Use agent instance-level heartbeat endpoint instead. This will be removed in a future version.")]
     [HttpPost("{clusterId}/heartbeat")]
     public async Task<ActionResult<ApiResponse<object>>> Heartbeat(string clusterId, [FromBody] HeartbeatDto heartbeat)
     {

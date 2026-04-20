@@ -16,6 +16,7 @@ public interface IClusterService
     Task<ClusterDto> CreateAsync(CreateClusterRequest request);
     Task<ClusterDto?> GetAsync(string clusterId);
     Task<List<ClusterSummaryDto>> GetAllAsync(string? env = null, string? status = null);
+    [Obsolete("Use agent instance-level heartbeat endpoint instead. This will be removed in a future version.")]
     Task UpdateHeartbeatAsync(string clusterId, HeartbeatDto heartbeat);
     Task DeleteAsync(string clusterId);
     Task<string> RotateTokenAsync(string clusterId);
@@ -28,11 +29,16 @@ public class ClusterService : IClusterService
 {
     private readonly PlatformDbContext _dbContext;
     private readonly ILogger<ClusterService> _logger;
+    private readonly IAgentInstanceService _agentInstanceService;
 
-    public ClusterService(PlatformDbContext dbContext, ILogger<ClusterService> logger)
+    public ClusterService(
+        PlatformDbContext dbContext,
+        ILogger<ClusterService> logger,
+        IAgentInstanceService agentInstanceService)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _agentInstanceService = agentInstanceService;
     }
 
     public async Task<ClusterDto> CreateAsync(CreateClusterRequest request)
@@ -79,7 +85,10 @@ public class ClusterService : IClusterService
 
         if (cluster == null) return null;
 
-        return MapToDto(cluster);
+        var dto = await MapToDtoAsync(cluster);
+        dto.InstanceSummary = await _agentInstanceService.GetInstanceSummaryAsync(clusterId);
+        
+        return dto;
     }
 
     public async Task<List<ClusterSummaryDto>> GetAllAsync(string? env = null, string? status = null)
@@ -108,6 +117,13 @@ public class ClusterService : IClusterService
             .GroupBy(j => j.ClusterId)
             .Select(g => new { ClusterId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.ClusterId, x => x.Count);
+        
+        // 统计每个 Cluster 的活跃实例数量
+        var instanceCounts = await _dbContext.AgentInstances
+            .Where(ai => clusterIds.Contains(ai.ClusterId) && ai.DeletedAt == null)
+            .GroupBy(ai => ai.ClusterId)
+            .Select(g => new { ClusterId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ClusterId, x => x.Count);
 
         return clusters.Select(c => new ClusterSummaryDto
         {
@@ -116,10 +132,12 @@ public class ClusterService : IClusterService
             Env = c.Env,
             Status = c.Status.ToString(),
             LastHeartbeat = c.LastHeartbeat,
-            JobCount = jobCounts.GetValueOrDefault(c.Id, 0)
+            JobCount = jobCounts.GetValueOrDefault(c.Id, 0),
+            InstanceCount = instanceCounts.GetValueOrDefault(c.Id, 0)
         }).ToList();
     }
 
+    [Obsolete("Use agent instance-level heartbeat endpoint instead. This will be removed in a future version.")]
     public async Task UpdateHeartbeatAsync(string clusterId, HeartbeatDto heartbeat)
     {
         var cluster = await _dbContext.Clusters.FindAsync(clusterId);
@@ -181,65 +199,80 @@ public class ClusterService : IClusterService
     }
 
     /// <summary>
-    /// 计算 Cluster 状态（基于心跳超时）
+    /// 计算 Cluster 状态（基于实例状态）
     /// </summary>
     public async Task UpdateClusterStatusesAsync()
     {
-        var warningThreshold = TimeSpan.FromSeconds(60);
-        var offlineThreshold = TimeSpan.FromSeconds(90);
-        var now = DateTime.UtcNow;
-
         var clusters = await _dbContext.Clusters
-            .Where(c => c.Status != ClusterStatus.Deleted && c.Status != ClusterStatus.Pending)
+            .Where(c => c.Status != ClusterStatus.Deleted)
             .ToListAsync();
 
         foreach (var cluster in clusters)
         {
-            if (!cluster.LastHeartbeat.HasValue) continue;
-
-            var elapsed = now - cluster.LastHeartbeat.Value;
-            var newStatus = cluster.Status;
-
-            if (elapsed > offlineThreshold)
-            {
-                newStatus = ClusterStatus.Offline;
-            }
-            else if (elapsed > warningThreshold)
-            {
-                newStatus = ClusterStatus.Warning;
-            }
-            else
-            {
-                newStatus = ClusterStatus.Online;
-            }
-
+            // 先更新集群内所有实例的状态（基于最后心跳时间）
+            await _agentInstanceService.UpdateClusterInstanceStatusesAsync(cluster.Id);
+            
+            var instanceSummary = await _agentInstanceService.GetInstanceSummaryAsync(cluster.Id);
+            var newStatus = CalculateClusterStatusFromInstances(instanceSummary);
+            
             if (newStatus != cluster.Status)
             {
                 _logger.LogInformation(
-                    "Cluster {ClusterId} status changed: {OldStatus} -> {NewStatus}",
-                    cluster.Id, cluster.Status, newStatus);
+                    "Cluster {ClusterId} status changed: {OldStatus} -> {NewStatus} (instances: {Online}/{Warning}/{Offline}/{Pending})",
+                    cluster.Id, cluster.Status, newStatus,
+                    instanceSummary.OnlineCount, instanceSummary.WarningCount, 
+                    instanceSummary.OfflineCount, instanceSummary.PendingCount);
                 
                 cluster.Status = newStatus;
-                cluster.UpdatedAt = now;
+                cluster.UpdatedAt = DateTime.UtcNow;
             }
         }
 
         await _dbContext.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// 根据实例状态计算集群状态
+    /// </summary>
+    private ClusterStatus CalculateClusterStatusFromInstances(InstanceSummaryDto instanceSummary)
+    {
+        if (instanceSummary.TotalCount == 0)
+        {
+            return ClusterStatus.Offline;
+        }
+        
+        if (instanceSummary.OnlineCount > 0)
+        {
+            return ClusterStatus.Online;
+        }
+        
+        if (instanceSummary.WarningCount > 0)
+        {
+            return ClusterStatus.Warning;
+        }
+        
+        return ClusterStatus.Offline;
+    }
+
     #region Helper Methods
 
-    private ClusterDto MapToDto(Cluster cluster)
+    private async Task<ClusterDto> MapToDtoAsync(Cluster cluster)
     {
+        var instanceSummary = await _agentInstanceService.GetInstanceSummaryAsync(cluster.Id);
+        
         return new ClusterDto
         {
             Id = cluster.Id,
             Name = cluster.Name,
             Env = cluster.Env,
-            AgentUrl = cluster.AgentUrl,
+#pragma warning disable CS0618
+            AgentUrl = null,
+#pragma warning restore CS0618
             Status = cluster.Status.ToString(),
             LastHeartbeat = cluster.LastHeartbeat,
-            CreatedAt = cluster.CreatedAt
+            CreatedAt = cluster.CreatedAt,
+            InstanceCount = 0,
+            InstanceSummary = null
         };
     }
 

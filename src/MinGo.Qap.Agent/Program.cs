@@ -17,10 +17,69 @@ builder.Configuration["agent:id"] = agentConfig.Agent.Id;
 builder.Configuration["agent:clusterId"] = agentConfig.Agent.ClusterId;
 builder.Configuration["agent:port"] = agentConfig.Agent.Port.ToString();
 builder.Configuration["agent:heartbeatIntervalSeconds"] = agentConfig.Agent.HeartbeatIntervalSeconds.ToString();
+builder.Configuration["agent:registrationMaxAttempts"] = agentConfig.Agent.RegistrationMaxAttempts.ToString();
+builder.Configuration["agent:registrationRetryDelaySeconds"] = agentConfig.Agent.RegistrationRetryDelaySeconds.ToString();
+builder.Configuration["agent:clusterMode"] = agentConfig.Agent.ClusterMode.ToString();
 builder.Configuration["platform:url"] = agentConfig.Platform.Url;
+builder.Configuration["platform:apiToken"] = agentConfig.Platform.ApiToken;
 
-// 添加 Quartz 配置
-foreach (var prop in agentConfig.Quartz.Properties)
+// 处理集群模式配置
+var quartzProperties = new Dictionary<string, string>(agentConfig.Quartz.Properties);
+
+// 如果启用了集群模式，确保 Quartz 配置支持集群
+if (agentConfig.Agent.ClusterMode)
+{
+    // 生成 Quartz 实例 ID（集群中必须唯一）
+    // 格式: {clusterId}-{hostname}-{timestamp}
+    if (!quartzProperties.ContainsKey("quartz.scheduler.instanceId") || 
+        quartzProperties["quartz.scheduler.instanceId"] == "AUTO")
+    {
+        var hostname = Environment.MachineName.ToLowerInvariant();
+        var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+        var clusterId = agentConfig.Agent.ClusterId.ToLowerInvariant()
+            .Replace(" ", "-")
+            .Replace("_", "-")
+            .Replace(".", "-");
+        var instanceId = $"{clusterId}-{hostname}-{timestamp}";
+        quartzProperties["quartz.scheduler.instanceId"] = instanceId;
+    }
+    
+    // 确保 jobStore.type 是 AdoJobStore（如果不是，则设置为默认值）
+    if (!quartzProperties.ContainsKey("quartz.jobStore.type") || 
+        !quartzProperties["quartz.jobStore.type"].Contains("AdoJobStore"))
+    {
+        quartzProperties["quartz.jobStore.type"] = "Quartz.Impl.AdoJobStore.JobStoreTX, Quartz";
+        quartzProperties["quartz.jobStore.driverDelegateType"] = "Quartz.Impl.AdoJobStore.StdAdoDelegate, Quartz";
+        quartzProperties["quartz.jobStore.tablePrefix"] = "QRTZ_";
+        quartzProperties["quartz.jobStore.useProperties"] = "false";
+        quartzProperties["quartz.jobStore.misfireThreshold"] = "60000";
+    }
+    
+    // 启用集群
+    quartzProperties["quartz.jobStore.clustered"] = "true";
+    
+    // 设置集群检查间隔（如果未设置）
+    if (!quartzProperties.ContainsKey("quartz.jobStore.clusterCheckinInterval"))
+    {
+        quartzProperties["quartz.jobStore.clusterCheckinInterval"] = "20000";
+    }
+    
+    // 如果未设置数据源，设置默认数据源配置（用户仍需提供连接字符串）
+    if (!quartzProperties.ContainsKey("quartz.dataSource.default.provider"))
+    {
+        quartzProperties["quartz.dataSource.default.provider"] = "Npgsql";
+    }
+    
+    if (!quartzProperties.ContainsKey("quartz.dataSource.default.connectionString"))
+    {
+        // 连接字符串需要由用户提供，这里只设置一个示例占位符
+        // 实际值应该来自环境变量或配置文件
+        quartzProperties["quartz.dataSource.default.connectionString"] = "Host=postgres;Port=5432;Database=quartz;Username=postgres;Password=${POSTGRES_PASSWORD}";
+    }
+}
+
+// 添加 Quartz 配置到 builder.Configuration
+foreach (var prop in quartzProperties)
 {
     builder.Configuration[$"quartz:{prop.Key}"] = prop.Value;
 }
@@ -44,6 +103,7 @@ builder.Services.AddSingleton<IJobRegistry, JobRegistry>();
 builder.Services.AddSingleton<IJobConverter, JobConverter>();
 builder.Services.AddScoped<IQuartzService, QuartzService>();
 builder.Services.AddScoped<HealthCheckService>();
+builder.Services.AddSingleton<IAgentRegistrationService, AgentRegistrationService>();
 
 // Background Services
 builder.Services.AddHostedService<HeartbeatService>();
@@ -202,11 +262,53 @@ app.Lifetime.ApplicationStarted.Register(() =>
 app.Lifetime.ApplicationStopping.Register(() =>
 {
     using var scope = app.Services.CreateScope();
-    var scheduler = scope.ServiceProvider.GetRequiredService<IScheduler>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     
+    // 注销 Agent 实例
+    try
+    {
+        var registrationService = scope.ServiceProvider.GetRequiredService<IAgentRegistrationService>();
+        var success = registrationService.DeregisterAsync().GetAwaiter().GetResult();
+        if (success)
+        {
+            logger.LogInformation("Agent deregistered successfully");
+        }
+        else
+        {
+            logger.LogWarning("Agent deregistration failed or not registered");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error during agent deregistration");
+    }
+    
+    // 关闭 Quartz 调度器
+    var scheduler = scope.ServiceProvider.GetRequiredService<IScheduler>();
     if (!scheduler.IsShutdown)
     {
         scheduler.Shutdown(waitForJobsToComplete: true).Wait();
+    }
+});
+
+// 应用程序启动时注册 Agent
+app.Lifetime.ApplicationStarted.Register(async () =>
+{
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var registrationService = scope.ServiceProvider.GetRequiredService<IAgentRegistrationService>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        
+        logger.LogInformation("Registering agent with platform...");
+        var registrationResponse = await registrationService.RegisterAsync();
+        logger.LogInformation("Agent registered successfully. AgentId: {AgentId}", registrationResponse.AgentId);
+    }
+    catch (Exception ex)
+    {
+        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Failed to register agent with platform. Heartbeat service will not start.");
+        // 注意：如果注册失败，心跳服务将无法工作
     }
 });
 

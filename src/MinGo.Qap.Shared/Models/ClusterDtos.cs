@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace MinGo.Qap.Shared.Models;
@@ -10,10 +11,19 @@ public class ClusterDto
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Env { get; set; } = string.Empty;
-    public string AgentUrl { get; set; } = string.Empty;
+    [Obsolete("Use InstanceCount instead. Agent URL is now stored at instance level.")]
+    public string? AgentUrl { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime? LastHeartbeat { get; set; }
     public DateTime CreatedAt { get; set; }
+    /// <summary>
+    /// 活跃 Agent 实例数量
+    /// </summary>
+    public int InstanceCount { get; set; }
+    /// <summary>
+    /// 实例健康摘要（Online/Warning/Offline 数量）
+    /// </summary>
+    public InstanceSummaryDto? InstanceSummary { get; set; }
 }
 
 /// <summary>
@@ -27,6 +37,10 @@ public class ClusterSummaryDto
     public string Status { get; set; } = string.Empty;
     public DateTime? LastHeartbeat { get; set; }
     public int JobCount { get; set; }
+    /// <summary>
+    /// 活跃 Agent 实例数量
+    /// </summary>
+    public int InstanceCount { get; set; }
 }
 
 /// <summary>
@@ -61,4 +75,35 @@ public class CreateClusterResponse
     public string Token { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+}
+
+/// <summary>
+/// 实例健康摘要
+/// </summary>
+public class InstanceSummaryDto
+{
+    /// <summary>
+    /// 在线实例数量
+    /// </summary>
+    public int OnlineCount { get; set; }
+    
+    /// <summary>
+    /// 警告实例数量
+    /// </summary>
+    public int WarningCount { get; set; }
+    
+    /// <summary>
+    /// 离线实例数量
+    /// </summary>
+    public int OfflineCount { get; set; }
+    
+    /// <summary>
+    /// 待处理实例数量
+    /// </summary>
+    public int PendingCount { get; set; }
+    
+    /// <summary>
+    /// 总实例数量
+    /// </summary>
+    public int TotalCount { get; set; }
 }

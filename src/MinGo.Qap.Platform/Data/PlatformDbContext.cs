@@ -22,6 +22,11 @@ public class PlatformDbContext : DbContext
     /// </summary>
     public DbSet<JobDefinition> JobDefinitions { get; set; } = null!;
 
+    /// <summary>
+    /// AgentInstance 表
+    /// </summary>
+    public DbSet<AgentInstance> AgentInstances { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -34,7 +39,7 @@ public class PlatformDbContext : DbContext
             entity.Property(e => e.Id).HasMaxLength(64);
             entity.Property(e => e.Name).HasMaxLength(256).IsRequired();
             entity.Property(e => e.Env).HasMaxLength(64).IsRequired();
-            entity.Property(e => e.AgentUrl).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.AgentUrl).HasMaxLength(512);
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.TokenHash).HasMaxLength(256);
             entity.Property(e => e.Description).HasMaxLength(1024);
@@ -71,6 +76,38 @@ public class PlatformDbContext : DbContext
             // 索引
             entity.HasIndex(e => new { e.ClusterId, e.JobKey }).IsUnique();
             entity.HasIndex(e => e.Status);
+        });
+
+        // AgentInstance 配置
+        modelBuilder.Entity<AgentInstance>(entity =>
+        {
+            entity.ToTable("AgentInstances");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(64);
+            entity.Property(e => e.ClusterId).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(128);
+            entity.Property(e => e.Url).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.Status).IsRequired();
+            entity.Property(e => e.QuartzInstanceId).HasMaxLength(256);
+            entity.Property(e => e.TokenHash).HasMaxLength(256);
+            entity.Property(e => e.AgentVersion).HasMaxLength(64);
+            
+            // 外键
+            entity.HasOne(e => e.Cluster)
+                .WithMany(c => c.AgentInstances)
+                .HasForeignKey(e => e.ClusterId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // 索引
+            entity.HasIndex(e => e.ClusterId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.LastHeartbeat);
+            
+            // 唯一约束：防止同一集群注册相同URL的实例
+            entity.HasIndex(e => new { e.ClusterId, e.Url }).IsUnique();
+            
+            // 查询过滤软删除
+            entity.HasQueryFilter(e => e.DeletedAt == null);
         });
     }
 }

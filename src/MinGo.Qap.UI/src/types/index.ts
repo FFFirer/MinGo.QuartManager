@@ -31,7 +31,8 @@ export interface ClusterDto {
   id: string;
   name: string;
   env: string;
-  agentUrl: string;
+  agentUrl?: string; // 已弃用，使用实例列表
+  instanceCount: number;
   status: ClusterStatus;
   lastHeartbeat?: string;
   createdAt: string;
@@ -44,6 +45,8 @@ export interface ClusterSummaryDto {
   status: ClusterStatus;
   lastHeartbeat?: string;
   jobCount: number;
+  instanceCount: number;
+  healthyInstanceCount: number; // 状态为 Online 的实例数
 }
 
 export interface CreateClusterRequest {
@@ -174,4 +177,63 @@ export interface SystemMetricsDto {
   memoryUsedMb: number;
   memoryTotalMb: number;
   cpuPercent: number;
+}
+
+// Agent Instance
+export type AgentStatus = 'Pending' | 'Online' | 'Warning' | 'Offline' | 'Deleted';
+
+export interface AgentInstanceDto {
+  id: string;
+  clusterId: string;
+  name?: string;
+  url: string;
+  status: AgentStatus;
+  lastHeartbeat?: string;
+  quartzInstanceId?: string;
+  agentVersion?: string;
+  startedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AgentSummaryDto {
+  id: string;
+  name?: string;
+  url: string;
+  status: string;
+  lastHeartbeat?: string;
+  agentVersion?: string;
+  startedAt?: string;
+  createdAt: string;
+}
+
+export interface CreateAgentRequest {
+  name?: string;
+  url: string;
+  agentVersion?: string;
+  quartzInstanceId?: string;
+}
+
+export interface AgentRegistrationResponse {
+  agentId: string;
+  quartzInstanceId: string;
+  clusterId: string;
+  platformApiBaseUrl: string;
+  heartbeatIntervalSeconds: number;
+  warningThresholdSeconds: number;
+  offlineThresholdSeconds: number;
+}
+
+export interface AgentHeartbeatRequest {
+  agentId: string;
+  quartzInstanceId?: string;
+  agentVersion: string;
+  status: string;
+  metrics: string; // JSON string
+}
+
+export interface AgentHeartbeatResponse {
+  success: boolean;
+  message?: string;
+  nextHeartbeatIntervalSeconds?: number;
 }

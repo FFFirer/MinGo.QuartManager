@@ -2,8 +2,10 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Activity } from 'lucide-react';
 import ClustersPage from './pages/ClustersPage';
+import ClusterDetailPage from './pages/ClusterDetailPage';
 import JobsPage from './pages/JobsPage';
 import JobDetailPage from './pages/JobDetailPage';
+import AgentInstancesPage from './pages/AgentInstancesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,8 +52,10 @@ function App() {
           <main className="flex-1 overflow-auto">
             <Routes>
               <Route path="/" element={<ClustersPage />} />
+              <Route path="/clusters/:clusterId" element={<ClusterDetailPage />} />
               <Route path="/clusters/:clusterId/jobs" element={<JobsPage />} />
               <Route path="/clusters/:clusterId/jobs/:jobKey" element={<JobDetailPage />} />
+              <Route path="/clusters/:clusterId/agents" element={<AgentInstancesPage />} />
             </Routes>
           </main>
         </div>

@@ -10,7 +10,12 @@ import type {
   CreateJobRequest,
   UpdateJobRequest,
   JobManifestDto,
-  HeartbeatDto
+  HeartbeatDto,
+  AgentInstanceDto,
+  CreateAgentRequest,
+  AgentRegistrationResponse,
+  AgentHeartbeatRequest,
+  AgentHeartbeatResponse
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/';
@@ -48,6 +53,25 @@ export const clusterApi = {
   
   heartbeat: (clusterId: string, data: HeartbeatDto) => 
     api.post<ApiResponse<{}>>(`/api/clusters/${clusterId}/heartbeat`, data).then(r => r.data),
+  
+  // Agent instance management
+  getAgents: (clusterId: string) =>
+    api.get<ApiResponse<AgentInstanceDto[]>>(`/api/clusters/${clusterId}/agents`).then(r => r.data),
+  
+  createAgent: (clusterId: string, data: CreateAgentRequest) =>
+    api.post<ApiResponse<AgentRegistrationResponse>>(`/api/clusters/${clusterId}/agents`, data).then(r => r.data),
+};
+
+// Agent Instance APIs
+export const agentInstanceApi = {
+  get: (agentId: string) =>
+    api.get<ApiResponse<AgentInstanceDto>>(`/api/agents/${agentId}`).then(r => r.data),
+  
+  delete: (agentId: string) =>
+    api.delete<ApiResponse<{}>>(`/api/agents/${agentId}`).then(r => r.data),
+  
+  heartbeat: (agentId: string, data: AgentHeartbeatRequest) =>
+    api.post<ApiResponse<AgentHeartbeatResponse>>(`/api/agents/${agentId}/heartbeat`, data).then(r => r.data),
 };
 
 // Job APIs

@@ -31,6 +31,9 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<IClusterService, ClusterService>();
 builder.Services.AddScoped<IAgentProxyService, AgentProxyService>();
 builder.Services.AddScoped<IJobService, JobService>();
+builder.Services.AddScoped<IAgentInstanceService, AgentInstanceService>();
+builder.Services.AddSingleton<IAgentSelectionStrategy, RandomSelectionStrategy>();
+builder.Services.AddHttpContextAccessor();
 
 // 5. 添加状态检查后台服务（可选）
 builder.Services.AddHostedService<ClusterStatusMonitorService>();
