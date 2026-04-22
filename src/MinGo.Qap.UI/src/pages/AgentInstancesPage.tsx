@@ -65,19 +65,6 @@ const AgentInstancesPage: React.FC = () => {
           clusterEnv={cluster?.env}
         />
 
-        <div className="flex justify-end mb-4">
-          <button
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            onClick={() =>
-              toast(
-                "Agent instances are automatically registered when they start. To add an agent, start a new agent instance with the same cluster ID.",
-              )
-            }
-          >
-            + Register Agent
-          </button>
-        </div>
-
         <div className="mb-6 p-4 bg-slate-800 rounded-lg">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-3 bg-slate-900 rounded">
@@ -105,6 +92,19 @@ const AgentInstancesPage: React.FC = () => {
               <div className="text-sm text-slate-400">Offline</div>
             </div>
           </div>
+        </div>
+
+        <div className="flex justify-end mb-4">
+          <button
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            onClick={() =>
+              toast(
+                "Agent instances are automatically registered when they start. To add an agent, start a new agent instance with the same cluster ID.",
+              )
+            }
+          >
+            + Register Agent
+          </button>
         </div>
 
         <DataTable

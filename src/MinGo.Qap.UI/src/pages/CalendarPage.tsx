@@ -147,16 +147,6 @@ export function CalendarPage() {
         clusterStatus="Unknown"
       />
 
-      <div className="flex justify-end mb-4">
-        <Link
-          to={`/clusters/${clusterId}/jobs`}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
-        >
-          <Clock size={16} />
-          View Jobs
-        </Link>
-      </div>
-
       {/* Calendar Controls */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
