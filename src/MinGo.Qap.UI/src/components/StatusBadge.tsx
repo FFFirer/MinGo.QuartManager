@@ -3,7 +3,8 @@ import React from 'react';
 interface StatusBadgeProps {
   status: 
     | 'Online' | 'Warning' | 'Offline' | 'Pending' | 'Deleted'
-    | 'normal' | 'paused' | 'blocked';
+    | 'normal' | 'paused' | 'blocked'
+    | string;
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
   variant?: 'dot' | 'badge' | 'inline';

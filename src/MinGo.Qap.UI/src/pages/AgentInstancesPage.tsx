@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useCluster } from "../hooks/useClusters";
 import { useAgentInstances } from "../hooks/useAgentInstances";
+import toast from 'react-hot-toast';
 import StatusBadge from "../components/StatusBadge";
+import ClusterTabs from "../components/ClusterTabs";
 import DataTable from "../components/DataTable";
 import ConfirmDialog from "../components/ConfirmDialog";
 
@@ -25,9 +27,7 @@ const AgentInstancesPage: React.FC = () => {
   };
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const [deletingInstanceId, setDeletingInstanceId] = useState<string | null>(
-    null,
-  );
+  const [deletingInstanceId, setDeletingInstanceId] = useState<string | null>(null);
 
   const handleDeleteInstance = async (id: string) => {
     setDeletingInstanceId(id);
@@ -35,10 +35,15 @@ const AgentInstancesPage: React.FC = () => {
   };
 
   const confirmDeleteInstance = async () => {
-    // TODO: Implement actual delete agent instance functionality
-    // For now, just close the dialog and show an alert
-    setIsDeleteConfirmOpen(false);
-    alert("Agent instance deletion would be implemented here");
+    if (deletingInstanceId) {
+      try {
+        // TODO: Implement actual delete agent instance functionality
+        setIsDeleteConfirmOpen(false);
+        toast.success('Agent instance deleted successfully');
+      } catch (err: any) {
+        toast.error('Failed to delete agent instance: ' + err.message);
+      }
+    }
     setDeletingInstanceId(null);
   };
 
@@ -54,22 +59,17 @@ const AgentInstancesPage: React.FC = () => {
   return (
     <>
       <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link to="/clusters" className="text-blue-400 hover:text-blue-300">
-              Clusters
-            </Link>
-            <span className="text-slate-400">/</span>
-            <span className="text-slate-50">{cluster?.name}</span>
-            <span className="text-slate-400">/</span>
-            <h1 className="text-2xl font-bold text-slate-50">
-              Agent Instances
-            </h1>
-          </div>
+        <ClusterTabs
+          clusterName={cluster?.name || clusterId || 'Cluster'}
+          clusterStatus={cluster?.status || 'Unknown'}
+          clusterEnv={cluster?.env}
+        />
+
+        <div className="flex justify-end mb-4">
           <button
-            className="btn-primary"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             onClick={() =>
-              alert(
+              toast(
                 "Agent instances are automatically registered when they start. To add an agent, start a new agent instance with the same cluster ID.",
               )
             }

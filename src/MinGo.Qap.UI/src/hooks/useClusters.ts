@@ -41,25 +41,35 @@ export const useCluster = (clusterId: string) => {
   });
 };
 
-export const useCreateCluster = () => {
+export const useCreateCluster = (options?: {
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}) => {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: (data: CreateClusterRequest) => clusterApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.clusters });
+      options?.onSuccess?.();
     },
+    onError: options?.onError,
   });
 };
 
-export const useDeleteCluster = () => {
+export const useDeleteCluster = (options?: {
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}) => {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: (clusterId: string) => clusterApi.delete(clusterId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.clusters });
+      options?.onSuccess?.();
     },
+    onError: options?.onError,
   });
 };
 
@@ -111,42 +121,62 @@ export const useUpdateJob = (clusterId: string, jobKey: string) => {
   });
 };
 
-export const useDeleteJob = (clusterId: string) => {
+export const useDeleteJob = (clusterId: string, options?: {
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}) => {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: (jobKey: string) => jobApi.delete(clusterId, jobKey),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.jobs(clusterId) });
+      options?.onSuccess?.();
     },
+    onError: options?.onError,
   });
 };
 
-export const useTriggerJob = (clusterId: string) => {
+export const useTriggerJob = (clusterId: string, options?: {
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}) => {
   return useMutation({
     mutationFn: (jobKey: string) => jobApi.trigger(clusterId, jobKey),
+    onSuccess: options?.onSuccess,
+    onError: options?.onError,
   });
 };
 
-export const usePauseJob = (clusterId: string) => {
+export const usePauseJob = (clusterId: string, options?: {
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}) => {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: (jobKey: string) => jobApi.pause(clusterId, jobKey),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.jobs(clusterId) });
+      options?.onSuccess?.();
     },
+    onError: options?.onError,
   });
 };
 
-export const useResumeJob = (clusterId: string) => {
+export const useResumeJob = (clusterId: string, options?: {
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}) => {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: (jobKey: string) => jobApi.resume(clusterId, jobKey),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.jobs(clusterId) });
+      options?.onSuccess?.();
     },
+    onError: options?.onError,
   });
 };
 

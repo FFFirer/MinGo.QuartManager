@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useCreateJob } from '../hooks/useClusters';
 import { useManifest } from '../hooks/useClusters';
+import toast from 'react-hot-toast';
 import type { CreateJobRequest, ScheduleDto, QuartzOptionsDto, JobTypeInfoDto, ParameterInfoDto, ScheduleType } from '../types';
 
 interface CreateJobModalProps {
@@ -126,8 +127,10 @@ const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onCl
 
     try {
       await createJob.mutateAsync(request);
+      toast.success('Job created successfully!');
       onClose();
     } catch (err: any) {
+      toast.error(err.message || 'Failed to create job');
       setError(err.message || 'Failed to create job');
     }
   };

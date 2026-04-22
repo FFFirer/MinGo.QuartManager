@@ -21,6 +21,10 @@ public class ClusterDto
     /// </summary>
     public int InstanceCount { get; set; }
     /// <summary>
+    /// Job 数量
+    /// </summary>
+    public int JobCount { get; set; }
+    /// <summary>
     /// 实例健康摘要（Online/Warning/Offline 数量）
     /// </summary>
     public InstanceSummaryDto? InstanceSummary { get; set; }

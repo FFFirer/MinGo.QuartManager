@@ -5,6 +5,7 @@ using MinGo.Qap.Shared.Enums;
 using MinGo.Qap.Shared.Models;
 using System.Security.Cryptography;
 using System.Text;
+using System.Linq;
 
 namespace MinGo.Qap.Platform.Services;
 
@@ -20,6 +21,7 @@ public interface IClusterService
     Task UpdateHeartbeatAsync(string clusterId, HeartbeatDto heartbeat);
     Task DeleteAsync(string clusterId);
     Task<string> RotateTokenAsync(string clusterId);
+    Task UpdateClusterStatusesAsync();
 }
 
 /// <summary>
@@ -260,6 +262,10 @@ public class ClusterService : IClusterService
     {
         var instanceSummary = await _agentInstanceService.GetInstanceSummaryAsync(cluster.Id);
         
+        var jobCount = await _dbContext.JobDefinitions
+            .Where(j => j.ClusterId == cluster.Id)
+            .CountAsync();
+        
         return new ClusterDto
         {
             Id = cluster.Id,
@@ -271,8 +277,9 @@ public class ClusterService : IClusterService
             Status = cluster.Status.ToString(),
             LastHeartbeat = cluster.LastHeartbeat,
             CreatedAt = cluster.CreatedAt,
-            InstanceCount = 0,
-            InstanceSummary = null
+            JobCount = jobCount,
+            InstanceCount = instanceSummary.TotalCount,
+            InstanceSummary = instanceSummary
         };
     }
 

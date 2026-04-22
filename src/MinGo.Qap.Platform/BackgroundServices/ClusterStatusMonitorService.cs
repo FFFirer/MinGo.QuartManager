@@ -28,7 +28,7 @@ public class ClusterStatusMonitorService : BackgroundService
             try
             {
                 using var scope = _serviceProvider.CreateScope();
-                var clusterService = scope.ServiceProvider.GetRequiredService<ClusterService>();
+                var clusterService = scope.ServiceProvider.GetRequiredService<IClusterService>();
                 
                 // 更新所有 Cluster 的状态
                 await clusterService.UpdateClusterStatusesAsync();

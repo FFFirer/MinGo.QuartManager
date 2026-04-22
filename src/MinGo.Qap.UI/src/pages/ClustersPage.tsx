@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useClusters, useDeleteCluster } from '../hooks/useClusters';
+import toast from 'react-hot-toast';
 import CreateClusterModal from '../components/CreateClusterModal';
 import StatusBadge from '../components/StatusBadge';
 import PageHeader from '../components/PageHeader';
@@ -23,16 +24,17 @@ const ClustersPage: React.FC = () => {
      setDeletingClusterId(null);
    };
 
-   const handleDeleteConfirm = async () => {
-     if (deletingClusterId) {
-       try {
-         await deleteCluster.mutateAsync(deletingClusterId);
-       } catch (err: any) {
-         alert('Failed to delete cluster: ' + err.message);
-       }
-     }
-     handleDeleteConfirmClose();
-   };
+const handleDeleteConfirm = async () => {
+      if (deletingClusterId) {
+        try {
+          await deleteCluster.mutateAsync(deletingClusterId);
+          toast.success('Cluster deleted successfully');
+        } catch (err: any) {
+          toast.error('Failed to delete cluster: ' + err.message);
+        }
+      }
+      handleDeleteConfirmClose();
+    };
 
 
 
