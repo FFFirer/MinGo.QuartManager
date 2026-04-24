@@ -22,13 +22,15 @@ public interface IClusterService
     Task DeleteAsync(string clusterId);
     Task<string> RotateTokenAsync(string clusterId);
     Task UpdateClusterStatusesAsync();
+    // Recalculate statuses for all clusters
+    Task<int> RecalculateAllStatusesAsync();
 }
 
 /// <summary>
 /// Cluster 服务实现
 /// </summary>
-public class ClusterService : IClusterService
-{
+    public class ClusterService : IClusterService
+    {
     private readonly PlatformDbContext _dbContext;
     private readonly ILogger<ClusterService> _logger;
     private readonly IAgentInstanceService _agentInstanceService;
@@ -231,6 +233,37 @@ public class ClusterService : IClusterService
         }
 
         await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task<int> RecalculateAllStatusesAsync()
+    {
+        var clusters = await _dbContext.Clusters
+            .Where(c => c.Status != ClusterStatus.Deleted)
+            .ToListAsync();
+
+        int changedCount = 0;
+        foreach (var cluster in clusters)
+        {
+            // 更新集群内实例状态
+            await _agentInstanceService.UpdateClusterInstanceStatusesAsync(cluster.Id);
+            var instanceSummary = await _agentInstanceService.GetInstanceSummaryAsync(cluster.Id);
+            var newStatus = CalculateClusterStatusFromInstances(instanceSummary);
+
+            if (newStatus != cluster.Status)
+            {
+                _logger.LogInformation(
+                    "Cluster {ClusterId} status changed: {OldStatus} -> {NewStatus} (instances: {Online}/{Warning}/{Offline}/{Pending})",
+                    cluster.Id, cluster.Status, newStatus,
+                    instanceSummary.OnlineCount, instanceSummary.WarningCount,
+                    instanceSummary.OfflineCount, instanceSummary.PendingCount);
+                cluster.Status = newStatus;
+                cluster.UpdatedAt = DateTime.UtcNow;
+                changedCount++;
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+        return changedCount;
     }
 
     /// <summary>

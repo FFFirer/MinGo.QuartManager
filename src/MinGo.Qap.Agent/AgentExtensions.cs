@@ -67,6 +67,23 @@ public static class AgentExtensions
     }
 
     /// <summary>
+    /// 极速初始化：注册最小的 Agent 服务以便快速启动日志收集与作业发现等能力
+    /// </summary>
+    public static IServiceCollection UseMinGoAgent(this IServiceCollection services)
+    {
+        // 注册基础日志收集能力
+        services.AddSingleton<ILogCollectionService, LogCollectionService>();
+        // 注册 JobDiscoveryService 通过工厂注入 AgentConfig
+        services.AddSingleton<IJobDiscoveryService>(sp =>
+        {
+            var cfg = sp.GetRequiredService<AgentConfig>();
+            var logger = sp.GetRequiredService<ILogger<JobDiscoveryService>>();
+            return new JobDiscoveryService(cfg, logger);
+        });
+        return services;
+    }
+
+    /// <summary>
     /// Adds the Quartz hosted service to start the scheduler.
     /// </summary>
     /// <param name="services">The service collection.</param>
