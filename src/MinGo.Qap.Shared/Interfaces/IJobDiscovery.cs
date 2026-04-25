@@ -1,3 +1,5 @@
+using MinGo.Qap.Shared.Models;
+
 namespace MinGo.Qap.Shared.Interfaces;
 
 /// <summary>
@@ -28,7 +30,7 @@ public record DiscoveredJobInfo(
     string JobKey,
     string JobTypeFullName,
     string? Description,
-    IReadOnlyDictionary<string, string>? Parameters,
+    List<ParameterInfoDto>? Parameters,
     ScheduleInfo? Schedule
 );
 

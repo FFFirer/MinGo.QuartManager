@@ -84,16 +84,19 @@ public class AgentRegistrationService : IAgentRegistrationService
     private readonly IConfiguration _configuration;
     private readonly ILogger<AgentRegistrationService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AgentUrlResolver _urlResolver;
     private AgentRegistrationInfo? _registrationInfo;
     
     public AgentRegistrationService(
         IConfiguration configuration,
         ILogger<AgentRegistrationService> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        AgentUrlResolver urlResolver)
     {
         _configuration = configuration;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+        _urlResolver = urlResolver;
     }
     
     public async Task<AgentRegistrationResponse> RegisterAsync(CancellationToken cancellationToken = default)
@@ -283,16 +286,7 @@ public class AgentRegistrationService : IAgentRegistrationService
     
     private string GetAgentUrl(AgentConfig config)
     {
-        // 如果配置中指定了完整的 Agent URL，则使用它
-        // 否则根据主机和端口推导
-        var port = config.Agent.Port;
-        var host = "localhost"; // 默认
-        
-        // 在实际部署中，可能需要从环境变量或网络接口获取主机名
-        var hostname = Environment.GetEnvironmentVariable("AGENT_HOST") ?? Environment.MachineName;
-        
-        // 使用 HTTP（生产环境应考虑 HTTPS）
-        return $"http://{hostname}:{port}";
+        return _urlResolver.Resolve(config.Agent);
     }
     
     private string GetAgentVersion()

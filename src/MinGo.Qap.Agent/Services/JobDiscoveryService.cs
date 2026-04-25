@@ -3,6 +3,7 @@ using System.Reflection;
 using MinGo.Qap.Agent.Configuration;
 using MinGo.Qap.Shared.Attributes;
 using MinGo.Qap.Shared.Interfaces;
+using MinGo.Qap.Shared.Models;
 using Quartz;
 
 namespace MinGo.Qap.Agent.Services;
@@ -196,11 +197,14 @@ public class JobDiscoveryService : IJobDiscoveryService
                 }
             }
 
+            // 发现参数
+            var parameters = DiscoverParameters(jobType);
+
             return new DiscoveredJobInfo(
                 JobKey: key,
                 JobTypeFullName: jobType.FullName ?? jobType.Name,
                 Description: description,
-                Parameters: null,
+                Parameters: parameters,
                 Schedule: null
             );
         }
@@ -209,6 +213,109 @@ public class JobDiscoveryService : IJobDiscoveryService
             _logger.LogWarning(ex, "Failed to create job info for type: {Type}", jobType.FullName);
             return null;
         }
+    }
+
+    private List<ParameterInfoDto> DiscoverParameters(Type jobType)
+    {
+        var parameters = new List<ParameterInfoDto>();
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // 1. 从属性发现 [JobParameter] 和 [JobPayload]
+        foreach (var prop in jobType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var paramAttr = prop.GetCustomAttribute<JobParameterAttribute>();
+            if (paramAttr != null)
+            {
+                if (seenNames.Add(paramAttr.Name))
+                {
+                    parameters.Add(new ParameterInfoDto
+                    {
+                        Name = paramAttr.Name,
+                        Type = MapClrTypeToParameterType(prop.PropertyType),
+                        Required = paramAttr.Required,
+                        Default = paramAttr.DefaultValue,
+                        Label = paramAttr.Label ?? paramAttr.Name
+                    });
+                }
+                continue;
+            }
+
+            var payloadAttr = prop.GetCustomAttribute<JobPayloadAttribute>();
+            if (payloadAttr != null)
+            {
+                var propName = payloadAttr.Label ?? prop.Name;
+                if (seenNames.Add(propName))
+                {
+                    parameters.Add(new ParameterInfoDto
+                    {
+                        Name = propName,
+                        Type = "object",
+                        Required = payloadAttr.Required,
+                        Label = payloadAttr.Label ?? prop.Name
+                    });
+                }
+            }
+        }
+
+        // 2. 从构造函数参数发现
+        var ctor = jobType.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+            .OrderByDescending(c => c.GetParameters().Length)
+            .FirstOrDefault();
+
+        if (ctor != null)
+        {
+            foreach (var param in ctor.GetParameters())
+            {
+                var paramAttr = param.GetCustomAttribute<JobParameterAttribute>();
+                if (paramAttr != null)
+                {
+                    if (seenNames.Add(paramAttr.Name))
+                    {
+                        parameters.Add(new ParameterInfoDto
+                        {
+                            Name = paramAttr.Name,
+                            Type = MapClrTypeToParameterType(param.ParameterType),
+                            Required = paramAttr.Required && !param.IsOptional,
+                            Default = paramAttr.DefaultValue ?? (param.HasDefaultValue ? param.DefaultValue : null),
+                            Label = paramAttr.Label ?? paramAttr.Name
+                        });
+                    }
+                    continue;
+                }
+
+                // 无特性的构造函数参数，尝试用参数名作为简单参数
+                if (seenNames.Add(param.Name!))
+                {
+                    parameters.Add(new ParameterInfoDto
+                    {
+                        Name = param.Name!,
+                        Type = MapClrTypeToParameterType(param.ParameterType),
+                        Required = !param.IsOptional,
+                        Default = param.HasDefaultValue ? param.DefaultValue : null,
+                        Label = param.Name!
+                    });
+                }
+            }
+        }
+
+        return parameters;
+    }
+
+    private static string MapClrTypeToParameterType(Type type)
+    {
+        var underlyingType = Nullable.GetUnderlyingType(type) ?? type;
+
+        return underlyingType switch
+        {
+            _ when underlyingType == typeof(string) => "string",
+            _ when underlyingType == typeof(int) || underlyingType == typeof(long) || underlyingType == typeof(short) => "int",
+            _ when underlyingType == typeof(double) || underlyingType == typeof(float) || underlyingType == typeof(decimal) => "number",
+            _ when underlyingType == typeof(bool) => "bool",
+            _ when underlyingType == typeof(DateTime) || underlyingType == typeof(DateTimeOffset) => "datetime",
+            _ when underlyingType == typeof(Guid) => "guid",
+            _ when underlyingType.IsEnum => "enum",
+            _ => "object"
+        };
     }
 
     private DiscoveredJobInfo? CreateJobInfoFromTypeName(string typeName)

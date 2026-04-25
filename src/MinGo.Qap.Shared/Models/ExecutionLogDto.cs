@@ -19,7 +19,12 @@ public class ExecutionLogDto
     /// 结束时间
     /// </summary>
     public DateTimeOffset? EndTime { get; set; }
-    
+
+    /// <summary>
+    /// 执行时长（毫秒）
+    /// </summary>
+    public long? DurationMs { get; set; }
+
     /// <summary>
     /// 是否成功
     /// </summary>

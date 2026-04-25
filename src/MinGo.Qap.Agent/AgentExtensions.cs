@@ -1,11 +1,9 @@
 using MinGo.Qap.Agent.Configuration;
-using MinGo.Qap.Agent.Quartz;
 using MinGo.Qap.Agent.Services;
 using MinGo.Qap.Shared.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Quartz;
 
 namespace MinGo.Qap.Agent;
 
@@ -35,33 +33,70 @@ public static class AgentExtensions
         // Register HTTP client for Platform communication
         services.AddHttpClient();
 
-        // Register core services
-        services.AddSingleton<IJobRegistry, JobRegistry>();
-        services.AddSingleton<IJobConverter, JobConverter>();
-        services.AddSingleton<IAgentRegistrationService, AgentRegistrationService>();
+        // Register discovery service (needed for manifest generation)
+        services.AddSingleton<IJobDiscoveryService>(sp =>
+        {
+            var cfg = sp.GetRequiredService<AgentConfig>();
+            var logger = sp.GetRequiredService<ILogger<JobDiscoveryService>>();
+            return new JobDiscoveryService(cfg, logger);
+        });
 
-        // Register JobManifest from configuration
+        // Register JobManifest from configuration with parameter discovery
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<AgentConfig>();
+            var discovery = sp.GetRequiredService<IJobDiscoveryService>();
+            var logger = sp.GetRequiredService<ILogger<JobDiscoveryService>>();
+
             var manifest = new JobManifestDto
             {
                 ClusterId = config.Agent.ClusterId,
                 Jobs = new List<JobTypeInfoDto>()
             };
 
-            foreach (var jobType in config.Quartz.JobTypes)
+            // Use discovery service to get full parameter metadata
+            var discovered = discovery.DiscoverFromConfigAsync().GetAwaiter().GetResult();
+            foreach (var job in discovered)
             {
                 manifest.Jobs.Add(new JobTypeInfoDto
                 {
-                    Key = jobType.Split('.').Last(),
-                    Description = jobType,
-                    Parameters = new List<ParameterInfoDto>()
+                    Key = job.JobKey,
+                    JobTypeFullName = job.JobTypeFullName,
+                    Description = job.Description ?? job.JobTypeFullName ?? string.Empty,
+                    Parameters = job.Parameters
                 });
+            }
+
+            // Fallback: add config types that couldn't be discovered (no assembly loaded)
+            foreach (var jobType in config.Quartz.JobTypes)
+            {
+                var key = jobType.Split('.').Last();
+                if (!manifest.Jobs.Any(j => j.Key == key))
+                {
+                    manifest.Jobs.Add(new JobTypeInfoDto
+                    {
+                        Key = key,
+                        Description = jobType,
+                        Parameters = new List<ParameterInfoDto>()
+                    });
+                    logger.LogWarning("Job type {JobType} not discoverable; add assembly reference to enable parameter metadata", jobType);
+                }
             }
 
             return manifest;
         });
+
+        // Register core services
+        services.AddSingleton<IJobRegistry>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<JobRegistry>>();
+            var manifest = sp.GetService<JobManifestDto>();
+            return new JobRegistry(logger, manifest);
+        });
+        services.AddSingleton<IJobConverter, JobConverter>();
+        services.AddSingleton<AgentUrlResolver>();
+        services.AddSingleton<IAgentRegistrationService, AgentRegistrationService>();
+        services.AddSingleton<ILogCollectionService, LogCollectionService>();
 
         return services;
     }
@@ -83,21 +118,4 @@ public static class AgentExtensions
         return services;
     }
 
-    /// <summary>
-    /// Adds the Quartz hosted service to start the scheduler.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddQuartzHostedService(this IServiceCollection services)
-    {
-        services.AddSingleton<IScheduler>(sp =>
-        {
-            var configSection = sp.GetRequiredService<IConfiguration>().GetSection("quartz");
-            var logger = sp.GetRequiredService<ILogger<SchedulerInitializer>>();
-            var initializer = new SchedulerInitializer(configSection, logger);
-            return initializer.InitializeAsync().GetAwaiter().GetResult();
-        });
-
-        return services;
-    }
 }

@@ -434,8 +434,9 @@ public class QuartzService : IQuartzService
 
     private QuartzOptionsDto ExtractOptions(IJobDetail jobDetail)
     {
-        var disallowConcurrent = jobDetail.JobDataMap.GetBoolean("disallowConcurrent");
-        
+        var disallowConcurrent = jobDetail.JobDataMap.ContainsKey("disallowConcurrent")
+            && jobDetail.JobDataMap.GetBoolean("disallowConcurrent");
+
         return new QuartzOptionsDto
         {
             DisallowConcurrentExecution = disallowConcurrent,

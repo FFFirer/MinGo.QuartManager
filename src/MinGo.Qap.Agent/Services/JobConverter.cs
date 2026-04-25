@@ -48,9 +48,27 @@ public class JobConverter : IJobConverter
             }
         }
 
+        // 解析实际 Job 类型
+        Type? actualType = null;
+        if (!string.IsNullOrEmpty(jobType.JobTypeFullName))
+        {
+            actualType = Type.GetType(jobType.JobTypeFullName);
+            if (actualType == null)
+            {
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    actualType = assembly.GetType(jobType.JobTypeFullName);
+                    if (actualType != null) break;
+                }
+            }
+        }
+
         // 创建 JobBuilder
-        var jobBuilder = JobBuilder.Create()
-            .WithIdentity(name, group)
+        var jobBuilder = actualType != null
+            ? JobBuilder.Create(actualType)
+            : JobBuilder.Create();
+
+        jobBuilder.WithIdentity(name, group)
             .UsingJobData(jobDataMap);
 
         // 并发控制

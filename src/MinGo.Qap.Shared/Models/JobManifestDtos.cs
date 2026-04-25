@@ -9,12 +9,17 @@ public class JobTypeInfoDto
     /// Job 类型 Key（唯一标识）
     /// </summary>
     public string Key { get; set; } = string.Empty;
-    
+
+    /// <summary>
+    /// Job 类型完整名称（用于反射创建实例）
+    /// </summary>
+    public string JobTypeFullName { get; set; } = string.Empty;
+
     /// <summary>
     /// Job 描述
     /// </summary>
     public string Description { get; set; } = string.Empty;
-    
+
     /// <summary>
     /// 参数定义列表
     /// </summary>

@@ -1,0 +1,7 @@
+agent:
+  clusterId: "my-cluster"
+  heartbeatIntervalSeconds: 30
+
+platform:
+  url: "http://localhost:5000"
+  apiToken: "your-api-token"

@@ -15,8 +15,7 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// Add controllers
-builder.Services.AddControllers();
+// Add Minimal API support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -32,6 +31,7 @@ var properties = new NameValueCollection
     ["quartz.threadPool.threadCount"] = "5"
 };
 
+// Add MinGo Agent services (includes LogCollection, JobDiscovery, Registration)
 builder.Services.AddMinGoAgent(builder.Configuration);
 builder.Services.AddSingleton<IScheduler>(sp =>
 {
@@ -51,13 +51,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseAuthorization();
-app.MapControllers();
+// Map MinGo Agent HTTP API (replaces custom Controllers)
+app.MapMinGoAgentApi();
 
 // Map health check endpoint
 app.MapHealthChecks("/health");
 
-// Get scheduler and schedule HelloJob manually
+// Get scheduler and schedule sample jobs
 var scheduler = app.Services.GetRequiredService<IScheduler>();
 
 // Schedule HelloJob to run every 10 seconds

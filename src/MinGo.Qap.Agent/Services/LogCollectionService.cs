@@ -15,7 +15,7 @@ public interface ILogCollectionService
     void Start();
     Task StopAsync();
     void RecordJobStarted(string jobKey);
-    void RecordJobCompleted(string jobKey, bool success, string? errorMessage = null, string? stackTrace = null);
+    void RecordJobCompleted(string jobKey, bool success, string? errorMessage = null, string? stackTrace = null, long? durationMs = null);
     Task FlushPendingLogsAsync();
 }
 
@@ -74,7 +74,7 @@ public class LogCollectionService : ILogCollectionService
         AddLog(log);
     }
 
-    public void RecordJobCompleted(string jobKey, bool success, string? errorMessage = null, string? stackTrace = null)
+    public void RecordJobCompleted(string jobKey, bool success, string? errorMessage = null, string? stackTrace = null, long? durationMs = null)
     {
         if (!_started) return;
         var log = new ExecutionLogDto
@@ -82,6 +82,7 @@ public class LogCollectionService : ILogCollectionService
             JobKey = jobKey,
             StartTime = DateTimeOffset.UtcNow,
             EndTime = DateTimeOffset.UtcNow,
+            DurationMs = durationMs,
             Success = success,
             ErrorMessage = errorMessage,
             StackTrace = stackTrace

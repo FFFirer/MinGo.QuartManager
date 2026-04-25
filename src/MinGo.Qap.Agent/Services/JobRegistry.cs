@@ -41,9 +41,13 @@ public class JobRegistry : IJobRegistry
     private readonly List<JobTypeInfoDto> _jobs = new();
     private readonly ILogger<JobRegistry> _logger;
 
-    public JobRegistry(ILogger<JobRegistry> logger)
+    public JobRegistry(ILogger<JobRegistry> logger, JobManifestDto? manifest = null)
     {
         _logger = logger;
+        if (manifest?.Jobs != null)
+        {
+            Register(manifest);
+        }
     }
 
     public void Register(JobManifestDto manifest)

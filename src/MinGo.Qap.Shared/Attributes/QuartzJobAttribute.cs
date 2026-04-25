@@ -14,7 +14,7 @@ public sealed class QuartzJobAttribute : Attribute
     /// <summary>
     /// 作业描述
     /// </summary>
-    public string? Description { get; }
+    public string? Description { get; set; }
 
     /// <summary>
     /// 是否持久化作业（即使没有触发器）

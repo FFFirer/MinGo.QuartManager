@@ -65,6 +65,16 @@ public class AgentSettings
     /// 是否启用集群模式（默认 false）
     /// </summary>
     public bool ClusterMode { get; set; } = false;
+    
+    /// <summary>
+    /// 显式指定的外部可访问 URL（可选，优先级最高）
+    /// </summary>
+    public string? ExternalUrl { get; set; }
+    
+    /// <summary>
+    /// 绑定的网络接口名称（可选，如 "eth0"）
+    /// </summary>
+    public string? NetworkInterface { get; set; }
 }
 
 /// <summary>
