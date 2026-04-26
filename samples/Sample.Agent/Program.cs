@@ -3,6 +3,7 @@ using MinGo.Sample.Agent.Jobs;
 using Quartz;
 using Quartz.Impl;
 using Quartz.Simpl;
+using Quartz.Spi;
 using Serilog;
 using System.Collections.Specialized;
 
@@ -33,10 +34,17 @@ var properties = new NameValueCollection
 
 // Add MinGo Agent services (includes LogCollection, JobDiscovery, Registration)
 builder.Services.AddMinGoAgent(builder.Configuration);
+
+// Register sample jobs for DI resolution
+builder.Services.AddTransient<HelloJob>();
+builder.Services.AddTransient<ScheduledJob>();
+builder.Services.AddTransient<ManualTriggerJob>();
+
 builder.Services.AddSingleton<IScheduler>(sp =>
 {
     var factory = new StdSchedulerFactory(properties);
     var scheduler = factory.GetScheduler().GetAwaiter().GetResult();
+    scheduler.JobFactory = new DIJobFactory(sp);
     scheduler.Start();
     Log.Information("Quartz Scheduler started with RAMJobStore");
     return scheduler;
@@ -97,3 +105,19 @@ await scheduler.AddJob(manualJob, replace: true);
 Log.Information("Sample jobs registered successfully");
 
 app.Run();
+
+/// <summary>
+/// Simple DI-aware job factory that resolves jobs from the service provider.
+/// </summary>
+public class DIJobFactory : IJobFactory
+{
+    private readonly IServiceProvider _serviceProvider;
+    public DIJobFactory(IServiceProvider serviceProvider) => _serviceProvider = serviceProvider;
+
+    public IJob NewJob(TriggerFiredBundle bundle, IScheduler scheduler)
+    {
+        return (IJob)_serviceProvider.GetRequiredService(bundle.JobDetail.JobType);
+    }
+
+    public void ReturnJob(IJob job) { }
+}
