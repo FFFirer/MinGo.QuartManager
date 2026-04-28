@@ -98,6 +98,12 @@ public static class AgentExtensions
         services.AddSingleton<IAgentRegistrationService, AgentRegistrationService>();
         services.AddSingleton<ILogCollectionService, LogCollectionService>();
 
+        // Register Quartz service facade (resolved lazily; IScheduler must be registered by host app)
+        services.AddSingleton<IQuartzService, QuartzService>();
+
+        // Register hosted agent lifecycle service (auto-register, heartbeat, graceful shutdown)
+        services.AddHostedService<HostedAgentService>();
+
         return services;
     }
 

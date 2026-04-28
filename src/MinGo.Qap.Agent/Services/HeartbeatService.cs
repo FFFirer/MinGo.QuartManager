@@ -7,6 +7,7 @@ namespace MinGo.Qap.Agent.Services;
 /// <summary>
 /// 心跳服务
 /// </summary>
+[Obsolete("Use HostedAgentService instead, which handles auto-registration, heartbeat, and graceful shutdown.")]
 public class HeartbeatService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;

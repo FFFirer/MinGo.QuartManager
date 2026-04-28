@@ -3,5 +3,5 @@ agent:
   heartbeatIntervalSeconds: 30
 
 platform:
-  url: "http://localhost:5000"
+  url: "http://localhost:5256"
   apiToken: "your-api-token"
