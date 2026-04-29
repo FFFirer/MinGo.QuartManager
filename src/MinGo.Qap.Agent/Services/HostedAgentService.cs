@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using MinGo.Qap.Agent.Configuration;
 using MinGo.Qap.Shared.Models;
 
@@ -12,7 +13,7 @@ public class HostedAgentService : BackgroundService
 {
     private readonly IAgentRegistrationService _registrationService;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IConfiguration _configuration;
+    private readonly IOptions<AgentConfig> _options;
     private readonly ILogger<HostedAgentService> _logger;
 
     private AgentRegistrationInfo? _registrationInfo;
@@ -25,12 +26,12 @@ public class HostedAgentService : BackgroundService
     public HostedAgentService(
         IAgentRegistrationService registrationService,
         IServiceProvider serviceProvider,
-        IConfiguration configuration,
+        IOptions<AgentConfig> options,
         ILogger<HostedAgentService> logger)
     {
         _registrationService = registrationService;
         _serviceProvider = serviceProvider;
-        _configuration = configuration;
+        _options = options;
         _logger = logger;
     }
 
@@ -65,12 +66,12 @@ public class HostedAgentService : BackgroundService
 
     private async Task RegisterWithRetryAsync(CancellationToken cancellationToken)
     {
-        var config = _configuration.Get<AgentConfig>();
-        var maxAttempts = config?.Agent.RegistrationMaxAttempts ?? 5;
-        var retryDelay = TimeSpan.FromSeconds(config?.Agent.RegistrationRetryDelaySeconds ?? 5);
+        var config = _options.Value;
+        var maxAttempts = config.Agent.RegistrationMaxAttempts;
+        var retryDelay = TimeSpan.FromSeconds(config.Agent.RegistrationRetryDelaySeconds);
 
         // Read default interval from config as fallback
-        if (config?.Agent.HeartbeatIntervalSeconds > 0)
+        if (config.Agent.HeartbeatIntervalSeconds > 0)
         {
             _heartbeatInterval = TimeSpan.FromSeconds(config.Agent.HeartbeatIntervalSeconds);
         }
@@ -341,9 +342,9 @@ public class HostedAgentService : BackgroundService
         _logger.LogInformation("Starting re-registration...");
         _isRegistered = false;
 
-        var config = _configuration.Get<AgentConfig>();
-        var maxAttempts = config?.Agent.RegistrationMaxAttempts ?? 5;
-        var retryDelay = TimeSpan.FromSeconds(config?.Agent.RegistrationRetryDelaySeconds ?? 5);
+        var config = _options.Value;
+        var maxAttempts = config.Agent.RegistrationMaxAttempts;
+        var retryDelay = TimeSpan.FromSeconds(config.Agent.RegistrationRetryDelaySeconds);
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {

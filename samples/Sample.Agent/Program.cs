@@ -33,7 +33,9 @@ var properties = new NameValueCollection
 };
 
 // Add MinGo Agent services (includes LogCollection, JobDiscovery, Registration)
-builder.Services.AddMinGoAgent(builder.Configuration);
+// This uses the standard IConfiguration pipeline with config.yaml as YAML source.
+// The YAML file is registered automatically as an optional configuration source.
+builder.AddMinGoAgent();
 
 // Register sample jobs for DI resolution
 builder.Services.AddTransient<HelloJob>();
@@ -79,7 +81,7 @@ var helloTrigger = TriggerBuilder.Create()
     .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever())
     .Build();
 
-await scheduler.ScheduleJob(helloJob, helloTrigger);
+// await scheduler.ScheduleJob(helloJob, helloTrigger);
 
 // Schedule ScheduledJob to run every 60 seconds (health check)
 var scheduledJob = JobBuilder.Create<ScheduledJob>()
@@ -92,7 +94,7 @@ var scheduledTrigger = TriggerBuilder.Create()
     .WithSimpleSchedule(x => x.WithIntervalInSeconds(60).RepeatForever())
     .Build();
 
-await scheduler.ScheduleJob(scheduledJob, scheduledTrigger);
+// await scheduler.ScheduleJob(scheduledJob, scheduledTrigger);
 
 // Register ManualTriggerJob as durable job
 var manualJob = JobBuilder.Create<ManualTriggerJob>()

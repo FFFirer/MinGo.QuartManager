@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Timers;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MinGo.Qap.Agent.Configuration;
 using MinGo.Qap.Shared.Models;
 using System.Net.Http.Json;
@@ -30,12 +31,12 @@ public class LogCollectionService : ILogCollectionService
     private readonly System.Timers.Timer _flushTimer;
     private bool _started;
 
-    public LogCollectionService(AgentConfig config,
+    public LogCollectionService(IOptions<AgentConfig> options,
         ILogger<LogCollectionService> logger,
         IHttpClientFactory httpClientFactory,
         IAgentRegistrationService registrationService)
     {
-        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _config = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger;
         _httpClientFactory = httpClientFactory;
         _registrationService = registrationService;

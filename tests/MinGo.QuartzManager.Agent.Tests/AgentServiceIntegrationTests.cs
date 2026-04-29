@@ -26,14 +26,13 @@ public class AgentServiceIntegrationTests
     {
         var services = new ServiceCollection();
 
-        var agentConfig = new AgentConfig
+        // Register AgentConfig via Options pattern for test
+        services.Configure<AgentConfig>(cfg =>
         {
-            Agent = new AgentSettings { ClusterId = "test-cluster", Port = 0 },
-            Platform = new PlatformSettings { Url = "http://localhost:9999", ApiToken = "test-token" },
-            Quartz = new QuartzSettings()
-        };
-
-        services.AddSingleton(agentConfig);
+            cfg.Agent = new AgentSettings { ClusterId = "test-cluster", Port = 8080 };
+            cfg.Platform = new PlatformSettings { Url = "http://localhost:9999", ApiToken = "test-token" };
+            cfg.Quartz = new QuartzSettings();
+        });
         services.AddLogging(b => b.AddConsole());
         services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
         services.AddSingleton<IJobRegistry>(sp =>

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Reflection;
+using Microsoft.Extensions.Options;
 using MinGo.Qap.Agent.Configuration;
 using MinGo.Qap.Shared.Attributes;
 using MinGo.Qap.Shared.Interfaces;
@@ -42,9 +43,9 @@ public class JobDiscoveryService : IJobDiscoveryService
     private readonly AgentConfig _config;
     private readonly ILogger<JobDiscoveryService> _logger;
 
-    public JobDiscoveryService(AgentConfig config, ILogger<JobDiscoveryService> logger)
+    public JobDiscoveryService(IOptions<AgentConfig> options, ILogger<JobDiscoveryService> logger)
     {
-        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _config = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger;
     }
 

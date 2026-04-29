@@ -53,16 +53,17 @@ public class DI_LogCollectionService_Tests
     public async Task LogCollectionService_Can_Send_Logs_To_Platform_When_Registered()
     {
         var services = new ServiceCollection();
-        var agentConfig = new AgentConfig
+        
+        // Register AgentConfig via Options pattern for test
+        services.Configure<AgentConfig>(cfg =>
         {
-            Agent = new AgentSettings { ClusterId = "c1" },
-            Platform = new PlatformSettings { Url = "http://plat", ApiToken = "tok" },
-        };
+            cfg.Agent = new AgentSettings { ClusterId = "c1" };
+            cfg.Platform = new PlatformSettings { Url = "http://plat", ApiToken = "tok" };
+        });
 
         // Simple logger
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         services.AddLogging();
-        services.AddSingleton(agentConfig);
         services.AddSingleton<IAgentRegistrationService, DummyRegistrationService>();
         var fakeHandler = new FakeHttpMessageHandler();
         services.AddSingleton<IHttpClientFactory>(sp => new DummyHttpClientFactory(fakeHandler));

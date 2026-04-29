@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using MinGo.Qap.Agent.Configuration;
 using MinGo.Qap.Shared.Models;
 using System.Net.Http.Json;
@@ -81,19 +82,19 @@ public class AgentRegistrationInfo
 /// </summary>
 public class AgentRegistrationService : IAgentRegistrationService
 {
-    private readonly IConfiguration _configuration;
+    private readonly AgentConfig _config;
     private readonly ILogger<AgentRegistrationService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly AgentUrlResolver _urlResolver;
     private AgentRegistrationInfo? _registrationInfo;
     
     public AgentRegistrationService(
-        IConfiguration configuration,
+        IOptions<AgentConfig> options,
         ILogger<AgentRegistrationService> logger,
         IHttpClientFactory httpClientFactory,
         AgentUrlResolver urlResolver)
     {
-        _configuration = configuration;
+        _config = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger;
         _httpClientFactory = httpClientFactory;
         _urlResolver = urlResolver;
@@ -101,15 +102,9 @@ public class AgentRegistrationService : IAgentRegistrationService
     
     public async Task<AgentRegistrationResponse> RegisterAsync(CancellationToken cancellationToken = default)
     {
-        var config = _configuration.Get<AgentConfig>();
-        if (config == null)
-        {
-            throw new InvalidOperationException("Agent configuration not found");
-        }
-        
-        var platformUrl = config.Platform.Url;
-        var clusterId = config.Agent.ClusterId;
-        var apiToken = config.Platform.ApiToken;
+        var platformUrl = _config.Platform.Url;
+        var clusterId = _config.Agent.ClusterId;
+        var apiToken = _config.Platform.ApiToken;
         
         if (string.IsNullOrEmpty(platformUrl))
         {
@@ -127,13 +122,13 @@ public class AgentRegistrationService : IAgentRegistrationService
         }
         
         // 获取 Agent URL（从配置或推导）
-        var agentUrl = GetAgentUrl(config);
+        var agentUrl = GetAgentUrl(_config);
         
         // 生成 Quartz 实例 ID（如果集群模式启用）
         string? quartzInstanceId = null;
-        if (config.Agent.ClusterMode)
+        if (_config.Agent.ClusterMode)
         {
-            quartzInstanceId = GenerateQuartzInstanceId(config, clusterId);
+            quartzInstanceId = GenerateQuartzInstanceId(_config, clusterId);
         }
         
         var request = new CreateAgentRequest
@@ -147,8 +142,8 @@ public class AgentRegistrationService : IAgentRegistrationService
         var httpClient = _httpClientFactory.CreateClient();
         httpClient.DefaultRequestHeaders.Add("X-Agent-Token", apiToken);
         
-        var maxAttempts = config.Agent.RegistrationMaxAttempts;
-        var retryDelay = TimeSpan.FromSeconds(config.Agent.RegistrationRetryDelaySeconds);
+        var maxAttempts = _config.Agent.RegistrationMaxAttempts;
+        var retryDelay = TimeSpan.FromSeconds(_config.Agent.RegistrationRetryDelaySeconds);
         
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
@@ -241,14 +236,7 @@ public class AgentRegistrationService : IAgentRegistrationService
             return false;
         }
         
-        var config = _configuration.Get<AgentConfig>();
-        if (config == null)
-        {
-            _logger.LogError("Agent configuration not found during deregistration");
-            return false;
-        }
-        
-        var apiToken = config.Platform.ApiToken;
+        var apiToken = _config.Platform.ApiToken;
         if (string.IsNullOrEmpty(apiToken))
         {
             _logger.LogError("API Token is not configured for deregistration");

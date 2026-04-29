@@ -79,22 +79,7 @@ You can also configure via ASP.NET Core `appsettings.json`:
 }
 ```
 
-> **Note**: `AddMinGoAgent(builder.Configuration)` reads from the ASP.NET Core configuration pipeline, so you can use `appsettings.json`, environment variables, or user secrets interchangeably.
-
-### Environment Variable Overrides
-
-All settings can be overridden via environment variables:
-
-| Environment Variable | Maps To |
-|---------------------|---------|
-| `QAP_AGENT_ID` | `agent.id` |
-| `QAP_CLUSTER_ID` | `agent.clusterId` |
-| `QAP_PORT` | `agent.port` |
-| `QAP_PLATFORM_URL` | `platform.url` |
-| `QAP_LOG_LEVEL` | `logging.level` |
-| `AGENT_URL` | Agent URL override (used by `AgentUrlResolver`) |
-
-Configuration priority (highest to lowest): **Environment Variables > User Secrets > appsettings.Development.json > appsettings.json > config.yaml**
+> **Note**: `builder.AddMinGoAgent()` reads from the ASP.NET Core configuration pipeline, so you can use `appsettings.json`, environment variables, or user secrets interchangeably. Configuration priority (highest to lowest): **Environment Variables > User Secrets > appsettings.Development.json > appsettings.json > config.yaml**
 
 ### Configure in Program.cs
 
@@ -102,7 +87,7 @@ Configuration priority (highest to lowest): **Environment Variables > User Secre
 var builder = WebApplication.CreateBuilder(args);
 
 // Add MinGo Agent services (does NOT initialize Quartz)
-builder.Services.AddMinGoAgent(builder.Configuration);
+builder.AddMinGoAgent();
 
 // Host application initializes Quartz Scheduler itself
 builder.Services.AddSingleton<IScheduler>(sp =>
