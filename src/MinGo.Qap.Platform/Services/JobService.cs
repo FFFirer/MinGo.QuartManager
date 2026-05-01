@@ -12,14 +12,14 @@ namespace MinGo.Qap.Platform.Services;
 /// </summary>
 public interface IJobService
 {
-    Task<JobDefinitionDto> CreateAsync(string clusterId, CreateJobRequest request);
-    Task<JobDefinitionDto?> GetAsync(string clusterId, string jobKey);
-    Task<List<JobSummaryDto>> GetByClusterAsync(string clusterId, JobQuery query);
-    Task UpdateAsync(string clusterId, string jobKey, UpdateJobRequest request);
-    Task DeleteAsync(string clusterId, string jobKey);
-    Task TriggerAsync(string clusterId, string jobKey);
-    Task PauseAsync(string clusterId, string jobKey);
-    Task ResumeAsync(string clusterId, string jobKey);
+    Task<JobDefinitionDto> CreateAsync(string schedulerName, CreateJobRequest request);
+    Task<JobDefinitionDto?> GetAsync(string schedulerName, string jobKey);
+    Task<List<JobSummaryDto>> GetBySchedulerAsync(string schedulerName, JobQuery query);
+    Task UpdateAsync(string schedulerName, string jobKey, UpdateJobRequest request);
+    Task DeleteAsync(string schedulerName, string jobKey);
+    Task TriggerAsync(string schedulerName, string jobKey);
+    Task PauseAsync(string schedulerName, string jobKey);
+    Task ResumeAsync(string schedulerName, string jobKey);
 }
 
 /// <summary>
@@ -41,7 +41,7 @@ public class JobService : IJobService
         _logger = logger;
     }
 
-    public async Task<JobDefinitionDto> CreateAsync(string clusterId, CreateJobRequest request)
+    public async Task<JobDefinitionDto> CreateAsync(string schedulerName, CreateJobRequest request)
     {
         var jobDefId = $"job-{Guid.NewGuid().ToString()[..8]}";
 
@@ -49,7 +49,7 @@ public class JobService : IJobService
         var jobDef = new JobDefinition
         {
             Id = jobDefId,
-            ClusterId = clusterId,
+            ClusterId = schedulerName,  // 用 SchedulerName 代替 ClusterId
             JobKey = request.JobKey,
             JobType = request.JobType,
             Params = JsonSerializer.Serialize(request.Params),
@@ -65,15 +65,15 @@ public class JobService : IJobService
         try
         {
             // 2. 转发到 Agent
-            var result = await _agentProxy.PostAsync<JobDetailDto>(clusterId, "jobs", request);
+            var result = await _agentProxy.PostAsync<JobDetailDto>(schedulerName, "jobs", request);
 
             // 3. 更新为 Synced
             jobDef.Status = SyncStatus.Synced;
             jobDef.UpdatedAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            _logger.LogInformation("Job created successfully: {JobKey} in cluster {ClusterId}",
-                request.JobKey, clusterId);
+            _logger.LogInformation("Job created successfully: {JobKey} for scheduler {SchedulerName}",
+                request.JobKey, schedulerName);
 
             return MapToDto(jobDef);
         }
@@ -85,23 +85,24 @@ public class JobService : IJobService
             jobDef.UpdatedAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            _logger.LogError(ex, "Failed to create job: {JobKey} in cluster {ClusterId}",
-                request.JobKey, clusterId);
+            _logger.LogError(ex, "Failed to create job: {JobKey} for scheduler {SchedulerName}",
+                request.JobKey, schedulerName);
 
             throw;
         }
     }
 
-    public async Task<JobDefinitionDto?> GetAsync(string clusterId, string jobKey)
+    public async Task<JobDefinitionDto?> GetAsync(string schedulerName, string jobKey)
     {
         // 实时从 Agent 获取
         try
         {
-            var job = await _agentProxy.GetAsync<JobDetailDto>(clusterId, $"jobs/{jobKey}");
+            var job = await _agentProxy.GetAsync<JobDetailDto>(schedulerName, $"jobs/{jobKey}");
             if (job == null) return null;
 
             return new JobDefinitionDto
             {
+                SchedulerName = schedulerName,
                 JobKey = job.JobKey,
                 JobType = job.JobType,
                 Params = JsonSerializer.Serialize(job.Params),
@@ -114,29 +115,29 @@ public class JobService : IJobService
         {
             // 如果 Agent 不可用，返回本地备份
             var jobDef = await _dbContext.JobDefinitions
-                .FirstOrDefaultAsync(j => j.ClusterId == clusterId && j.JobKey == jobKey);
+                .FirstOrDefaultAsync(j => j.ClusterId == schedulerName && j.JobKey == jobKey);
 
             return jobDef != null ? MapToDto(jobDef) : null;
         }
     }
 
-    public async Task<List<JobSummaryDto>> GetByClusterAsync(string clusterId, JobQuery query)
+    public async Task<List<JobSummaryDto>> GetBySchedulerAsync(string schedulerName, JobQuery query)
     {
         // 实时从 Agent 获取
         try
         {
-            var jobs = await _agentProxy.GetAsync<List<JobSummaryDto>>(clusterId, 
+            var jobs = await _agentProxy.GetAsync<List<JobSummaryDto>>(schedulerName,
                 $"jobs?page={query.Page}&pageSize={query.PageSize}&status={query.Status}&group={query.Group}&keyword={query.Keyword}");
-            
+
             return jobs ?? new List<JobSummaryDto>();
         }
         catch (AgentException)
         {
             // 如果 Agent 不可用，返回本地备份
             var dbQuery = _dbContext.JobDefinitions
-                .Where(j => j.ClusterId == clusterId);
+                .Where(j => j.ClusterId == schedulerName);
 
-            if (!string.IsNullOrEmpty(query.Status) && 
+            if (!string.IsNullOrEmpty(query.Status) &&
                 Enum.TryParse<SyncStatus>(query.Status, true, out var status))
             {
                 dbQuery = dbQuery.Where(j => j.Status == status);
@@ -161,11 +162,11 @@ public class JobService : IJobService
         }
     }
 
-    public async Task UpdateAsync(string clusterId, string jobKey, UpdateJobRequest request)
+    public async Task UpdateAsync(string schedulerName, string jobKey, UpdateJobRequest request)
     {
         // 1. 更新本地备份
         var jobDef = await _dbContext.JobDefinitions
-            .FirstOrDefaultAsync(j => j.ClusterId == clusterId && j.JobKey == jobKey);
+            .FirstOrDefaultAsync(j => j.ClusterId == schedulerName && j.JobKey == jobKey);
 
         if (jobDef != null)
         {
@@ -181,7 +182,7 @@ public class JobService : IJobService
             {
                 jobDef.Options = JsonSerializer.Serialize(request.Options);
             }
-            
+
             jobDef.Status = SyncStatus.Pending;
             jobDef.UpdatedAt = DateTime.UtcNow;
         }
@@ -191,7 +192,7 @@ public class JobService : IJobService
         // 2. 转发到 Agent
         try
         {
-            await _agentProxy.PutAsync<object>(clusterId, $"jobs/{jobKey}", request);
+            await _agentProxy.PutAsync<object>(schedulerName, $"jobs/{jobKey}", request);
 
             // 3. 更新为 Synced
             if (jobDef != null)
@@ -200,8 +201,8 @@ public class JobService : IJobService
                 await _dbContext.SaveChangesAsync();
             }
 
-            _logger.LogInformation("Job updated successfully: {JobKey} in cluster {ClusterId}",
-                jobKey, clusterId);
+            _logger.LogInformation("Job updated successfully: {JobKey} for scheduler {SchedulerName}",
+                jobKey, schedulerName);
         }
         catch (AgentException ex)
         {
@@ -217,14 +218,14 @@ public class JobService : IJobService
         }
     }
 
-    public async Task DeleteAsync(string clusterId, string jobKey)
+    public async Task DeleteAsync(string schedulerName, string jobKey)
     {
         // 1. 转发到 Agent
-        await _agentProxy.DeleteAsync(clusterId, $"jobs/{jobKey}");
+        await _agentProxy.DeleteAsync(schedulerName, $"jobs/{jobKey}");
 
         // 2. 删除本地备份
         var jobDef = await _dbContext.JobDefinitions
-            .FirstOrDefaultAsync(j => j.ClusterId == clusterId && j.JobKey == jobKey);
+            .FirstOrDefaultAsync(j => j.ClusterId == schedulerName && j.JobKey == jobKey);
 
         if (jobDef != null)
         {
@@ -232,32 +233,32 @@ public class JobService : IJobService
             await _dbContext.SaveChangesAsync();
         }
 
-        _logger.LogInformation("Job deleted successfully: {JobKey} in cluster {ClusterId}",
-            jobKey, clusterId);
+        _logger.LogInformation("Job deleted successfully: {JobKey} for scheduler {SchedulerName}",
+            jobKey, schedulerName);
     }
 
-    public async Task TriggerAsync(string clusterId, string jobKey)
+    public async Task TriggerAsync(string schedulerName, string jobKey)
     {
-        await _agentProxy.PostAsync<object>(clusterId, $"jobs/{jobKey}/trigger", new { });
-        
-        _logger.LogInformation("Job triggered: {JobKey} in cluster {ClusterId}",
-            jobKey, clusterId);
+        await _agentProxy.PostAsync<object>(schedulerName, $"jobs/{jobKey}/trigger", new { });
+
+        _logger.LogInformation("Job triggered: {JobKey} for scheduler {SchedulerName}",
+            jobKey, schedulerName);
     }
 
-    public async Task PauseAsync(string clusterId, string jobKey)
+    public async Task PauseAsync(string schedulerName, string jobKey)
     {
-        await _agentProxy.PostAsync<object>(clusterId, $"jobs/{jobKey}/pause", new { });
-        
-        _logger.LogInformation("Job paused: {JobKey} in cluster {ClusterId}",
-            jobKey, clusterId);
+        await _agentProxy.PostAsync<object>(schedulerName, $"jobs/{jobKey}/pause", new { });
+
+        _logger.LogInformation("Job paused: {JobKey} for scheduler {SchedulerName}",
+            jobKey, schedulerName);
     }
 
-    public async Task ResumeAsync(string clusterId, string jobKey)
+    public async Task ResumeAsync(string schedulerName, string jobKey)
     {
-        await _agentProxy.PostAsync<object>(clusterId, $"jobs/{jobKey}/resume", new { });
-        
-        _logger.LogInformation("Job resumed: {JobKey} in cluster {ClusterId}",
-            jobKey, clusterId);
+        await _agentProxy.PostAsync<object>(schedulerName, $"jobs/{jobKey}/resume", new { });
+
+        _logger.LogInformation("Job resumed: {JobKey} for scheduler {SchedulerName}",
+            jobKey, schedulerName);
     }
 
     #region Helper Methods
@@ -267,7 +268,7 @@ public class JobService : IJobService
         return new JobDefinitionDto
         {
             Id = jobDef.Id,
-            ClusterId = jobDef.ClusterId,
+            SchedulerName = jobDef.ClusterId,
             JobKey = jobDef.JobKey,
             JobType = jobDef.JobType,
             Params = jobDef.Params,

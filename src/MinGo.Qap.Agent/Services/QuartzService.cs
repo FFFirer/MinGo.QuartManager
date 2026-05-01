@@ -10,15 +10,16 @@ namespace MinGo.Qap.Agent.Services;
 /// </summary>
 public interface IQuartzService
 {
-    Task<JobDetailDto> CreateJobAsync(CreateJobRequest request);
-    Task UpdateJobAsync(string jobKey, UpdateJobRequest request);
-    Task DeleteJobAsync(string jobKey);
-    Task TriggerJobAsync(string jobKey);
-    Task PauseJobAsync(string jobKey);
-    Task ResumeJobAsync(string jobKey);
-    Task<JobDetailDto?> GetJobAsync(string jobKey);
-    Task<List<JobSummaryDto>> GetJobsAsync(JobQuery query);
-    Task<SchedulerStateDto> GetSchedulerStateAsync();
+    Task<JobDetailDto> CreateJobAsync(string schedulerName, CreateJobRequest request);
+    Task UpdateJobAsync(string schedulerName, string jobKey, UpdateJobRequest request);
+    Task DeleteJobAsync(string schedulerName, string jobKey);
+    Task TriggerJobAsync(string schedulerName, string jobKey);
+    Task PauseJobAsync(string schedulerName, string jobKey);
+    Task ResumeJobAsync(string schedulerName, string jobKey);
+    Task<JobDetailDto?> GetJobAsync(string schedulerName, string jobKey);
+    Task<List<JobSummaryDto>> GetJobsAsync(string schedulerName, JobQuery query);
+    Task<SchedulerStateDto> GetSchedulerStateAsync(string schedulerName);
+    Task<List<string>> GetSchedulerNamesAsync();
 }
 
 /// <summary>
@@ -43,29 +44,45 @@ public class SchedulerStateDto
 /// </summary>
 public class QuartzService : IQuartzService
 {
-    private readonly IScheduler _scheduler;
+    private readonly IAgentSchedulerAccessor _schedulerAccessor;
     private readonly IJobConverter _converter;
     private readonly IJobRegistry _registry;
     private readonly ILogger<QuartzService> _logger;
     private readonly IConfiguration _configuration;
 
     public QuartzService(
-        IScheduler scheduler,
+        IAgentSchedulerAccessor schedulerAccessor,
         IJobConverter converter,
         IJobRegistry registry,
         ILogger<QuartzService> logger,
         IConfiguration configuration)
     {
-        _scheduler = scheduler;
+        _schedulerAccessor = schedulerAccessor;
         _converter = converter;
         _registry = registry;
         _logger = logger;
         _configuration = configuration;
     }
 
-    public async Task<JobDetailDto> CreateJobAsync(CreateJobRequest request)
+    private IScheduler GetScheduler(string schedulerName)
     {
-        _logger.LogInformation("Creating job: {JobKey}", request.JobKey);
+        var scheduler = _schedulerAccessor.GetScheduler(schedulerName);
+        if (scheduler == null)
+        {
+            throw new ArgumentException($"Scheduler not found: {schedulerName}");
+        }
+        return scheduler;
+    }
+
+    public Task<List<string>> GetSchedulerNamesAsync()
+    {
+        return Task.FromResult(_schedulerAccessor.GetAll().Keys.ToList());
+    }
+
+    public async Task<JobDetailDto> CreateJobAsync(string schedulerName, CreateJobRequest request)
+    {
+        var scheduler = GetScheduler(schedulerName);
+        _logger.LogInformation("Creating job {JobKey} on scheduler {SchedulerName}", request.JobKey, schedulerName);
 
         // 验证 Job 类型
         var jobType = _registry.Get(request.JobType);
@@ -79,23 +96,24 @@ public class QuartzService : IQuartzService
         var trigger = _converter.ConvertToTrigger(request.JobKey, request.Schedule);
 
         // 调度 Job（replace: true 实现幂等）
-        await _scheduler.ScheduleJob(jobDetail, new[] { trigger }, replace: true, cancellationToken: default);
+        await scheduler.ScheduleJob(jobDetail, new[] { trigger }, replace: true, cancellationToken: default);
 
         _logger.LogInformation("Job created successfully: {JobKey}", request.JobKey);
 
-        return await GetJobAsync(request.JobKey) 
+        return await GetJobAsync(schedulerName, request.JobKey)
             ?? throw new InvalidOperationException("Failed to retrieve created job");
     }
 
-    public async Task UpdateJobAsync(string jobKey, UpdateJobRequest request)
+    public async Task UpdateJobAsync(string schedulerName, string jobKey, UpdateJobRequest request)
     {
+        var scheduler = GetScheduler(schedulerName);
         _logger.LogInformation("Updating job: {JobKey}", jobKey);
 
         var (name, group) = ParseJobKey(jobKey);
         var jobKeyObj = new JobKey(name, group);
 
         // 获取现有 Job
-        var existingJob = await _scheduler.GetJobDetail(jobKeyObj);
+        var existingJob = await scheduler.GetJobDetail(jobKeyObj);
         if (existingJob == null)
         {
             throw new ArgumentException($"Job not found: {jobKey}");
@@ -108,14 +126,14 @@ public class QuartzService : IQuartzService
             var triggerKey = new TriggerKey(triggerName, group);
 
             // 删除旧 Trigger
-            await _scheduler.UnscheduleJob(triggerKey);
+            await scheduler.UnscheduleJob(triggerKey);
 
             // 创建新 Trigger
             var newTrigger = _converter.ConvertToTrigger(jobKey, request.Schedule);
-            await _scheduler.ScheduleJob(newTrigger);
+            await scheduler.ScheduleJob(newTrigger);
         }
 
-            // 更新 JobData（如果提供了 Params）
+        // 更新 JobData（如果提供了 Params）
         if (request.Params != null)
         {
             var newJobData = new JobDataMap();
@@ -136,20 +154,21 @@ public class QuartzService : IQuartzService
                 .Build();
 
             // 替换 Job
-            await _scheduler.AddJob(newJob, replace: true);
+            await scheduler.AddJob(newJob, replace: true);
         }
 
         _logger.LogInformation("Job updated successfully: {JobKey}", jobKey);
     }
 
-    public async Task DeleteJobAsync(string jobKey)
+    public async Task DeleteJobAsync(string schedulerName, string jobKey)
     {
+        var scheduler = GetScheduler(schedulerName);
         _logger.LogInformation("Deleting job: {JobKey}", jobKey);
 
         var (name, group) = ParseJobKey(jobKey);
         var jobKeyObj = new JobKey(name, group);
 
-        var deleted = await _scheduler.DeleteJob(jobKeyObj);
+        var deleted = await scheduler.DeleteJob(jobKeyObj);
         if (!deleted)
         {
             throw new ArgumentException($"Job not found or could not be deleted: {jobKey}");
@@ -158,60 +177,64 @@ public class QuartzService : IQuartzService
         _logger.LogInformation("Job deleted successfully: {JobKey}", jobKey);
     }
 
-    public async Task TriggerJobAsync(string jobKey)
+    public async Task TriggerJobAsync(string schedulerName, string jobKey)
     {
+        var scheduler = GetScheduler(schedulerName);
         _logger.LogInformation("Triggering job: {JobKey}", jobKey);
 
         var (name, group) = ParseJobKey(jobKey);
         var jobKeyObj = new JobKey(name, group);
 
-        await _scheduler.TriggerJob(jobKeyObj);
+        await scheduler.TriggerJob(jobKeyObj);
 
         _logger.LogInformation("Job triggered successfully: {JobKey}", jobKey);
     }
 
-    public async Task PauseJobAsync(string jobKey)
+    public async Task PauseJobAsync(string schedulerName, string jobKey)
     {
+        var scheduler = GetScheduler(schedulerName);
         _logger.LogInformation("Pausing job: {JobKey}", jobKey);
 
         var (name, group) = ParseJobKey(jobKey);
         var jobKeyObj = new JobKey(name, group);
 
-        await _scheduler.PauseJob(jobKeyObj);
+        await scheduler.PauseJob(jobKeyObj);
 
         _logger.LogInformation("Job paused successfully: {JobKey}", jobKey);
     }
 
-    public async Task ResumeJobAsync(string jobKey)
+    public async Task ResumeJobAsync(string schedulerName, string jobKey)
     {
+        var scheduler = GetScheduler(schedulerName);
         _logger.LogInformation("Resuming job: {JobKey}", jobKey);
 
         var (name, group) = ParseJobKey(jobKey);
         var jobKeyObj = new JobKey(name, group);
 
-        await _scheduler.ResumeJob(jobKeyObj);
+        await scheduler.ResumeJob(jobKeyObj);
 
         _logger.LogInformation("Job resumed successfully: {JobKey}", jobKey);
     }
 
-    public async Task<JobDetailDto?> GetJobAsync(string jobKey)
+    public async Task<JobDetailDto?> GetJobAsync(string schedulerName, string jobKey)
     {
+        var scheduler = GetScheduler(schedulerName);
         var (name, group) = ParseJobKey(jobKey);
         var jobKeyObj = new JobKey(name, group);
 
-        var jobDetail = await _scheduler.GetJobDetail(jobKeyObj);
+        var jobDetail = await scheduler.GetJobDetail(jobKeyObj);
         if (jobDetail == null)
         {
             return null;
         }
 
         // 获取 Trigger
-        var triggers = await _scheduler.GetTriggersOfJob(jobKeyObj);
+        var triggers = await scheduler.GetTriggersOfJob(jobKeyObj);
         var trigger = triggers.FirstOrDefault();
 
         // 获取 Trigger 状态
-        var triggerState = trigger != null 
-            ? await _scheduler.GetTriggerState(trigger.Key)
+        var triggerState = trigger != null
+            ? await scheduler.GetTriggerState(trigger.Key)
             : TriggerState.None;
 
         // 构建 DTO
@@ -225,19 +248,20 @@ public class QuartzService : IQuartzService
             NextFireTime = trigger?.GetNextFireTimeUtc()?.DateTime,
             PreviousFireTime = trigger?.GetPreviousFireTimeUtc()?.DateTime,
             Params = jobDetail.JobDataMap.WrappedMap.ToDictionary(
-                kvp => kvp.Key, 
+                kvp => kvp.Key,
                 kvp => kvp.Value),
             Schedule = ExtractSchedule(trigger),
             Options = ExtractOptions(jobDetail)
         };
     }
 
-    public async Task<List<JobSummaryDto>> GetJobsAsync(JobQuery query)
+    public async Task<List<JobSummaryDto>> GetJobsAsync(string schedulerName, JobQuery query)
     {
+        var scheduler = GetScheduler(schedulerName);
         var result = new List<JobSummaryDto>();
 
         // 获取所有 Job Group
-        var groups = await _scheduler.GetJobGroupNames();
+        var groups = await scheduler.GetJobGroupNames();
 
         foreach (var group in groups)
         {
@@ -247,18 +271,18 @@ public class QuartzService : IQuartzService
                 continue;
             }
 
-            var jobKeys = await _scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals(group));
+            var jobKeys = await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals(group));
 
             foreach (var jobKey in jobKeys)
             {
-                var jobDetail = await _scheduler.GetJobDetail(jobKey);
+                var jobDetail = await scheduler.GetJobDetail(jobKey);
                 if (jobDetail == null) continue;
 
                 // 获取 Trigger
-                var triggers = await _scheduler.GetTriggersOfJob(jobKey);
+                var triggers = await scheduler.GetTriggersOfJob(jobKey);
                 var trigger = triggers.FirstOrDefault();
                 var triggerState = trigger != null
-                    ? await _scheduler.GetTriggerState(trigger.Key)
+                    ? await scheduler.GetTriggerState(trigger.Key)
                     : TriggerState.None;
 
                 // 过滤 Status
@@ -270,7 +294,7 @@ public class QuartzService : IQuartzService
 
                 // 过滤 Keyword
                 var fullKey = $"{jobKey.Group}.{jobKey.Name}";
-                if (!string.IsNullOrEmpty(query.Keyword) && 
+                if (!string.IsNullOrEmpty(query.Keyword) &&
                     !fullKey.Contains(query.Keyword, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -302,10 +326,11 @@ public class QuartzService : IQuartzService
             .ToList();
     }
 
-    public async Task<SchedulerStateDto> GetSchedulerStateAsync()
+    public async Task<SchedulerStateDto> GetSchedulerStateAsync(string schedulerName)
     {
-        var metaData = await _scheduler.GetMetaData();
-        var jobGroups = await _scheduler.GetJobGroupNames();
+        var scheduler = GetScheduler(schedulerName);
+        var metaData = await scheduler.GetMetaData();
+        var jobGroups = await scheduler.GetJobGroupNames();
 
         var totalJobs = 0;
         var normalCount = 0;
@@ -314,15 +339,15 @@ public class QuartzService : IQuartzService
 
         foreach (var group in jobGroups)
         {
-            var jobKeys = await _scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals(group));
+            var jobKeys = await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals(group));
             totalJobs += jobKeys.Count;
 
             foreach (var jobKey in jobKeys)
             {
-                var triggers = await _scheduler.GetTriggersOfJob(jobKey);
+                var triggers = await scheduler.GetTriggersOfJob(jobKey);
                 foreach (var trigger in triggers)
                 {
-                    var state = await _scheduler.GetTriggerState(trigger.Key);
+                    var state = await scheduler.GetTriggerState(trigger.Key);
                     switch (state)
                     {
                         case TriggerState.Normal:
@@ -341,7 +366,7 @@ public class QuartzService : IQuartzService
 
         // 判断是否运行在集群模式
         bool isClustered = false;
-        var clusteredConfig = _configuration["quartz:quartz.jobStore.clustered"] ?? 
+        var clusteredConfig = _configuration["quartz:quartz.jobStore.clustered"] ??
                               _configuration["quartz.jobStore.clustered"];
         if (!string.IsNullOrEmpty(clusteredConfig) && clusteredConfig.ToLowerInvariant() == "true")
         {
@@ -352,17 +377,17 @@ public class QuartzService : IQuartzService
             // 备用检查：JobStore 类型是否为 AdoJobStore
             isClustered = metaData.JobStoreType?.FullName?.Contains("AdoJobStore") == true;
         }
-        
+
         return new SchedulerStateDto
         {
-            Name = _scheduler.SchedulerName,
-            InstanceId = _scheduler.SchedulerInstanceId,
+            Name = scheduler.SchedulerName,
+            InstanceId = scheduler.SchedulerInstanceId,
             Status = metaData.RunningSince.HasValue ? "running" : "standby",
             RunningSince = metaData.RunningSince,
             NumberOfJobsExecuted = metaData.NumberOfJobsExecuted,
             JobCounts = new JobCountsDto
             {
-                Total = totalJobs,
+                TotalJobs = totalJobs,
                 Normal = normalCount,
                 Paused = pausedCount,
                 Blocked = blockedCount,

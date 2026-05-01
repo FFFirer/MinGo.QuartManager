@@ -98,7 +98,7 @@ public class UpdateJobRequest
 public class JobDefinitionDto
 {
     public string Id { get; set; } = string.Empty;
-    public string ClusterId { get; set; } = string.Empty;
+    public string SchedulerName { get; set; } = string.Empty;
     public string JobKey { get; set; } = string.Empty;
     public string JobType { get; set; } = string.Empty;
     public string Params { get; set; } = "{}";

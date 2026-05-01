@@ -11,11 +11,7 @@ public class ValidateAgentConfigOptions : IValidateOptions<AgentConfig>
     {
         var errors = new List<string>();
 
-        // Validate ClusterId
-        if (string.IsNullOrWhiteSpace(config.Agent.ClusterId))
-        {
-            errors.Add("Agent.ClusterId is required. Set it in config.yaml, appsettings.json, or via QAP_AGENT_CLUSTER_ID environment variable.");
-        }
+        // Note: ClusterId validation removed (Cluster concept deprecated)
 
         // Validate Platform URL
         if (string.IsNullOrWhiteSpace(config.Platform.Url))

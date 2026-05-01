@@ -62,6 +62,5 @@ public class ParameterInfoDto
 /// </summary>
 public class JobManifestDto
 {
-    public string ClusterId { get; set; } = string.Empty;
     public List<JobTypeInfoDto> Jobs { get; set; } = new();
 }

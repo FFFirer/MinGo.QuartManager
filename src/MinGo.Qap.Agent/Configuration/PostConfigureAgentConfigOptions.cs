@@ -9,11 +9,8 @@ public class PostConfigureAgentConfigOptions : IPostConfigureOptions<AgentConfig
 {
     public void PostConfigure(string? name, AgentConfig config)
     {
-        // Generate default Agent ID if not set
-        if (string.IsNullOrWhiteSpace(config.Agent.Id))
-        {
-            config.Agent.Id = $"agent-{Guid.NewGuid().ToString()[..8]}";
-        }
+        // Note: AgentId is now assigned by Platform and persisted locally.
+        // config.Agent.Id is used only as an optional display name.
 
         // Ensure collections are not null
         config.Quartz.JobTypes ??= [];

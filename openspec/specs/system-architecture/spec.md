@@ -10,320 +10,242 @@ Define the overall architecture design specification for MinGo.QuartzManager pro
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.0.0 | 2026-04-30 | Agent-Scheduler platform refactor: removed Cluster, added Identity persistence, Scheduler routing, DateTimeOffset migration |
 | 1.1.0 | 2026-04-24 | Added Agent as Library project, shared contracts, Quartz.NET wrapper architecture |
 | 1.0.0 | 2026-04-24 | Initial architecture specification |
 
 ---
 
-## ADDED Requirements (v1.1.0)
+## Component Architecture (v2.0.0)
 
-### Requirement: Agent is a NuGet Library Package
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                         Solution Structure                              │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌──────────────────┐      ┌───────────────────────────────────────┐   │
+│  │ MinGo.Qap.Shared │◄─────│          MinGo.Qap.Platform          │   │
+│  │  (Class Library) │      │          (ASP.NET Core Web API)       │   │
+│  │                  │      │                                       │   │
+│  │ • DTOs           │      │ ┌──────────┐ ┌──────────┐ ┌────────┐ │   │
+│  │ • Enums          │      │ │Agents    │ │Schedulers│ │ Jobs   │ │   │
+│  │ • Interfaces     │      │ │Controller│ │Controller│ │Cntrlr  │ │   │
+│  └────────┬─────────┘      │ └────┬─────┘ └────┬─────┘ └───┬────┘ │   │
+│           │                │      │             │           │       │   │
+│           │                │ ┌────▼─────────────▼───────────▼────┐  │   │
+│           │                │ │        SchedulerRouterService     │  │   │
+│           │                │ │    (SchedulerName → Agent路由)    │  │   │
+│           │                │ └────────────────┬─────────────────┘  │   │
+│           │                │                  │ HTTP Proxy         │   │
+│           │                └──────────────────┼────────────────────┘   │
+│           │                                   │                        │
+│           │                         ┌─────────▼──────────┐            │
+│           │                         │  AgentProxyService  │            │
+│           │                         │  (X-Scheduler-Name) │            │
+│           │                         └─────────┬──────────┘            │
+│           │                                   │                        │
+│           │              ┌────────────────────┼──────────────────┐    │
+│           │              │    MinGo.Qap.Agent │(Class Library)   │    │
+│           │              │                    │                  │    │
+│           │              │  ┌─────────────────▼──────────────┐   │    │
+│           └──────────────┤  │   HostedAgentService          │   │    │
+│                          │  │  • Load identity (file)       │   │    │
+│                          │  │  • Register (POST /api/agents)│   │    │
+│                          │  │  • Save identity              │   │    │
+│                          │  │  • Report schedulers           │   │    │
+│                          │  │  • Heartbeat loop             │   │    │
+│                          │  └────────────────┬──────────────┘   │    │
+│                          │                   │                    │    │
+│                          │  ┌────────────────▼──────────────┐   │    │
+│                          │  │  IAgentSchedulerAccessor     │   │    │
+│                          │  │  • AgentSchedulerAccessor    │   │    │
+│                          │  │  • DeferredSchedulerAccessor │   │    │
+│                          │  └────────────────┬──────────────┘   │    │
+│                          │                   │                    │    │
+│                          │  ┌────────────────▼──────────────┐   │    │
+│                          │  │   Quartz.NET Scheduler(s)    │   │    │
+│                          │  │   (One or more IScheduler)   │   │    │
+│                          │  └──────────────────────────────┘   │    │
+│                          └─────────────────────────────────────┘    │
+│                                                                         │
+│  ┌───────────────────────┐         ┌─────────────────────────┐       │
+│  │   MinGo.Qap.UI        │         │   Consumer App          │       │
+│  │   (React + TypeScript)│         │   (Adds Agent package)  │       │
+│  │                       │         │                         │       │
+│  │ • AgentsPage          │         │ • IScheduler(s) from DI │       │
+│  │ • AgentDetailPage     │         │ • Multiple Scheduler    │       │
+│  │ • SchedulersPage      │         │   support out-of-box    │       │
+│  │ • SchedulerDetailPage │         │                         │       │
+│  │ • JobsPage            │         │                         │       │
+│  │ • JobDetailPage       │         │                         │       │
+│  └───────────────────────┘         └─────────────────────────┘       │
+│                                                                         │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
-The Agent component SHALL be distributed as a NuGet package that can be added to any .NET application using Quartz.NET.
+### Key Changes in v2.0.0
 
-#### Scenario: Agent integration via NuGet
-- **GIVEN** a .NET application with Quartz.NET
-- **WHEN** the developer adds the `MinGo.Agent` NuGet package
-- **THEN** the application gains Agent capabilities without inheriting Platform dependencies
-- **AND** configuration is done through Quartz.NET's standard configuration mechanism
-
-#### Scenario: Agent as pure library
-- **GIVEN** Agent package is referenced
-- **WHEN** the host application starts
-- **THEN** Agent provides Job discovery, execution, and logging capabilities
-- **AND** Agent does NOT expose any HTTP endpoints or user-facing interfaces
-- **AND** Agent does NOT require its own WebHost/Kestrel
-
-### Requirement: Agent Wraps Quartz.NET Instance
-
-The Agent component SHALL be a thin wrapper around a Quartz.NET Scheduler instance.
-
-#### Scenario: Quartz.NET as foundation
-- **GIVEN** a running Quartz.NET Scheduler instance
-- **WHEN** Agent is configured
-- **THEN** Agent wraps the existing Scheduler without replacing it
-- **AND** Agent provides additional metadata, logging, and Platform integration capabilities
-- **AND** Agent respects all Quartz.NET configurations (clustering, job stores, thread pools)
-
-#### Scenario: Agent lifecycle tied to Scheduler
-- **GIVEN** Agent is added to an application
-- **WHEN** the Quartz.NET Scheduler starts/shuts down
-- **THEN** Agent lifecycle is managed alongside the Scheduler
-- **AND** Agent heartbeat stops when Scheduler is shut down
- 
-### Requirement: Agent does not depend on specific JobStore backend
-
-The Agent component SHALL be agnostic to the Quartz.NET JobStore backend used by the host application.
-
-#### Scenario: Host configures arbitrary JobStore
-- **GIVEN** the host configures Quartz to use a specific JobStore (e.g., PostgreSQL, SQL Server, SQLite)
-- **WHEN** the Agent library is integrated as a host library
-- **THEN** the Agent operates without knowledge of the concrete JobStore implementation
-- **AND** the host may swap JobStore backend without modifying the Agent
-
-### Constraint: Minimal API exposure restricted to intranet
-
-The Minimal API endpoints exposed by the Agent model SHALL be accessible only from internal networks (intranet). Public exposure is not allowed.
-
-#### Scenario: Intranet-only access
-- **GIVEN** the Worker application is deployed in an internal network
-- **WHEN** an internal host accesses the Agent Minimal API endpoints
-- **THEN** access is allowed
-- **AND** requests from outside the intranet SHOULD be rejected (403 Forbidden)
-
-### Requirement: Agent Uses Quartz.NET Dependency Injection
-
-The Agent component SHALL integrate with Quartz.NET's dependency injection system.
-
-#### Scenario: Quartz DI integration
-- **GIVEN** an application using Quartz.NET's standard DI configuration
-- **WHEN** Agent package is added
-- **THEN** Agent registers its services through Quartz.Extensions.DependencyInjection
-- **AND** Agent services follow Quartz's service lifetime conventions
-
-#### Scenario: Job registration via Quartz API
-- **GIVEN** Agent's job discovery finds IJob implementations
-- **WHEN** jobs need to be registered
-- **THEN** Agent uses `IScheduler.AddJob()` and `IScheduler.TriggerJob()` APIs
-- **AND** Agent does NOT bypass Quartz APIs or access internal implementations
-
-### Requirement: Agent Does NOT Depend on Platform
-
-The Agent component SHALL have zero dependencies on Platform.
-
-#### Scenario: No Platform dependency
-- **GIVEN** Agent source code
-- **WHEN** examining references and using statements
-- **THEN** there SHALL be NO references to MinGo.Qap.Platform
-- **AND** there SHALL be NO references to PlatformDbContext
-- **AND** there SHALL be NO HTTP clients pointing to Platform URLs
-
-#### Scenario: Agent self-contained
-- **GIVEN** Agent NuGet package
-- **WHEN** installing in a new project
-- **THEN** only Quartz.NET and Agent dependencies are pulled in
-- **AND** Platform is NOT a transitive dependency
-
-### Requirement: Shared Contracts Library
-
-Platform and Agent SHALL share data contracts through a common library.
-
-#### Scenario: Shared contracts project
-- **GIVEN** `MinGo.Qap.Shared` library
-- **WHEN** Platform and Agent reference this library
-- **THEN** both can use shared DTOs, interfaces, and data models
-- **AND** no duplication of contract definitions exists
-
-#### Scenario: Contract boundaries
-- **GIVEN** the shared library
-- **WHEN** defining API contracts between Platform and Agent
-- **THEN** contracts SHALL include:
-  - JobDefinitionDto (job metadata)
-  - ExecutionLogDto (log reporting)
-  - AgentRegistrationRequest/Response
-  - HeartbeatDto
-  - ClusterManifestDto (job type list)
-
-#### Scenario: Platform-specific vs Shared
-- **GIVEN** code in Platform or Agent
-- **WHEN** determining where to place a type
-- **THEN** types used by BOTH SHALL go in Shared
-- **AND** types used by Platform only SHALL stay in Platform
-- **AND** types used by Agent only SHALL stay in Agent
+| Change | Description |
+|--------|-------------|
+| **Remove Cluster** | Cluster concept removed from Platform, Agent, Shared, UI |
+| **Agent Identity** | AgentId persisted locally (agent-identity.json), survives restart |
+| **Scheduler Discovery** | `IAgentSchedulerAccessor` discovers all IScheduler instances in host |
+| **Scheduler Reporting** | Agent reports Quartz runtime info to Platform on startup |
+| **Scheduler Routing** | Job operations routed by schedulerName, not clusterId |
+| **DateTimeOffset** | All time fields migrated to DateTimeOffset with UTC enforcement |
+| **EF Core UTC** | Global timestamptz convention + Value Converter + save interceptor |
 
 ---
 
-## Component Architecture (Updated)
+## Project Responsibilities (v2.0.0)
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Solution Structure                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌─────────────────────┐         ┌─────────────────────┐          │
-│  │   MinGo.Qap.Shared  │◄────────│  MinGo.Qap.Platform │          │
-│  │   (Class Library)   │         │   (ASP.NET Core)     │          │
-│  │                     │         │                     │          │
-│  │  • DTOs             │         │  • Web API          │          │
-│  │  • Interfaces       │         │  • Dashboard        │          │
-│  │  • Data Contracts   │         │  • Agent Management │          │
-│  │  • Enums            │         │                     │          │
-│  └─────────────────────┘         └─────────────────────┘          │
-│           ▲                                  │                       │
-│           │              ┌──────────────────┘                       │
-│           │              │ Proxy / REST API                          │
-│           │              ▼                                           │
-│           │    ┌─────────────────────┐                             │
-│           └────│   MinGo.Qap.Agent   │                             │
-│                │   (Class Library)   │                             │
-│                │                     │                             │
-│                │  • Job Discovery     │                             │
-│                │  • Job Registration  │                             │
-│                │  • Log Collection   │                             │
-│                │  • Platform Client  │                             │
-│                │  • Heartbeat Service │                             │
-│                └─────────────────────┘                             │
-│                           │                                          │
-│                           │ Wraps                                    │
-│                           ▼                                          │
-│                ┌─────────────────────┐                             │
-│                │    Quartz.NET       │                             │
-│                │   Scheduler Instance│                             │
-│                │                     │                             │
-│                │  • Job Store (DB)   │                             │
-│                │  • Thread Pool      │                             │
-│                │  • Clustering       │                             │
-│                └─────────────────────┘                             │
-│                                                                     │
-│  ┌─────────────────────┐         ┌─────────────────────┐          │
-│  │   MinGo.Qap.UI      │◄────────│   Consumer App       │          │
-│  │   (React/Vite)      │         │   (Adds Agent pkg)   │          │
-│  └─────────────────────┘         └─────────────────────┘          │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### Project Responsibilities
-
-#### MinGo.Qap.Shared
+### MinGo.Qap.Shared
 | Responsibility |
 |---------------|
 | Data transfer objects (DTOs) shared between Platform and Agent |
-| Interface definitions (IAgentRegistry, ILogReporter) |
-| Enumerations (JobStatus, AgentStatus, ClusterStatus) |
+| Interface definitions (IAgentSchedulerAccessor, IAgentIdentityStore) |
+| Enumerations (SyncStatus, ScheduleType) |
 | REST API contract models |
-| JSON serialization attributes |
-| Validation attributes |
+| Time field conventions (DateTimeOffset, ISO 8601) |
 
-#### MinGo.Qap.Platform
+### MinGo.Qap.Platform
 | Responsibility |
 |---------------|
-| User Web API (CRUD operations) |
-| JobDefinition metadata backup |
-| Execution log aggregation |
-| Cluster/AgentInstance management |
-| Agent proxy forwarding |
-| NOT directly operating Quartz |
+| Agent CRUD API (register, heartbeat, list, delete) |
+| Scheduler info management (report, query) |
+| Scheduler → Agent routing (SchedulerRouterService) |
+| Job operation forwarding via AgentProxyService |
+| UTC audit interceptor for all DateTimeOffset fields |
+| 301 redirect from old Cluster endpoints |
 | Reference Shared library |
 
-#### MinGo.Qap.Agent (Library)
+### MinGo.Qap.Agent (Library)
 | Responsibility |
 |---------------|
-| Job discovery via assembly scanning |
-| Job registration to Quartz |
-| Scheduling execution via Quartz.NET |
-| Log collection and reporting to Platform |
-| Independent Quartz database |
-| Heartbeat to Platform |
-| NO user-facing UI |
-| NO HTTP endpoints |
+| Scheduler discovery via IAgentSchedulerAccessor |
+| Agent identity persistence (IAgentIdentityStore → file) |
+| Scheduler runtime info reporting (SchedulerReporterService) |
+| Registration: POST /api/agents (supports reconnect) |
+| Heartbeat with scheduler status summary |
+| Job creation/triggering via QuartzService (schedulerName-aware) |
+| API endpoints: schedulerName routing via X-Scheduler-Name header |
 | Reference Shared library |
-| Wraps Quartz.NET Scheduler |
+| Wraps Quartz.NET Scheduler(s) |
 
-#### Consumer Application
+### Consumer Application
 | Responsibility |
 |---------------|
 | Add MinGo.Qap.Agent NuGet package |
-| Configure Quartz.NET (including Agent configuration) |
-| Run Quartz.NET Scheduler |
-| Agent automatically handles registration, discovery, and reporting |
+| Register IScheduler(s) in DI (single or multiple) |
+| Agent auto-discovers all IScheduler instances |
+| Agent handles registration, reporting, heartbeat automatically |
 
 ---
 
-## Technology Stack (Updated)
+## Technology Stack (v2.0.0)
 
 | Component | Technology | Version |
 |-----------|-----------|---------|
 | Scheduling framework | Quartz.NET | 3.17.1 |
 | Web framework | ASP.NET Core | 10.0 |
-| Persistence | PostgreSQL | - |
+| Database | PostgreSQL | 15+ |
+| ORM | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.1 |
 | Target framework | .NET | 10.0 |
-| Agent packaging | NuGet | - |
-| DI integration | Quartz.Extensions.DependencyInjection | - |
+| Frontend | React + TypeScript + Vite | Latest |
+| UI Libraries | @tanstack/react-query, lucide-react | Latest |
 
 ---
 
-## Design Principles (Enhanced)
+## Design Principles (v2.0.0)
 
 | # | Principle |
 |---|-----------|
-| 1 | **Agent is a Library, not a Web App** - No Kestrel, no Swagger UI, no HTTP listeners |
-| 2 | **Agent wraps Quartz.NET** - Thin wrapper adding metadata, not replacing functionality |
-| 3 | **Quartz.NET DI first** - Agent integrates via Quartz's dependency injection extensions |
+| 1 | **Agent is a Library, not a Web App** - No Kestrel, no Swagger UI |
+| 2 | **Agent wraps Quartz.NET** - Thin wrapper adding metadata |
+| 3 | **Multi-Scheduler support** - Agent discovers all IScheduler instances |
 | 4 | **No Platform dependency** - Agent is completely standalone |
-| 5 | **Shared contracts via Shared project** - No duplicated DTOs or interfaces |
-| 6 | **Agent lifecycle = Scheduler lifecycle** - Automatic registration/unregistration |
-| 7 | **Data isolation - Quartz(DB) ⟂ Platform(DB)** - Independent via REST |
-| 8 | **Cluster is a group of Agents with same execution capability** |
-| 9 | **Agent is an executor instance that registers with Platform** |
+| 5 | **Shared contracts via Shared project** - No duplicated DTOs |
+| 6 | **Agent identity persists** - Survives restarts via local file |
+| 7 | **Scheduler-centric routing** - Operations routed by schedulerName |
+| 8 | **All time fields UTC** - DateTimeOffset + timestamptz + save interceptor |
 
 ---
 
-## REST API Contracts
+## REST API Contracts (v2.0.0)
 
-### Agent → Platform APIs
-
-| Method | Path | Purpose |
-|--------|-----|---------|
-| POST | /api/clusters/{clusterId}/agents | Register Agent instance |
-| POST | /api/agents/{agentId}/heartbeat | Heartbeat |
-| POST | /api/logs | Report execution logs |
-| GET | /api/manifest | Get job type list |
-
-### Platform → Agent APIs
+### Agent APIs
 
 | Method | Path | Purpose |
-|--------|-----|---------|
-| POST | /jobs | Create job |
-| PUT | /jobs/{key} | Update job |
-| DELETE | /jobs/{key} | Delete job |
-| POST | /jobs/{key}/trigger | Manual trigger |
-| POST | /jobs/{key}/pause | Pause job |
-| POST | /jobs/{key}/resume | Resume job |
+|--------|------|---------|
+| POST | /api/agents | Register/reconnect Agent |
+| GET | /api/agents | List all agents |
+| GET | /api/agents/{agentId} | Agent detail + schedulers |
+| DELETE | /api/agents/{agentId} | Soft delete agent |
+| POST | /api/agents/{agentId}/heartbeat | Agent heartbeat + scheduler status |
+| POST | /api/agents/{agentId}/schedulers | Report scheduler info |
+| GET | /api/agents/{agentId}/schedulers | Query agent's schedulers |
+
+### Scheduler APIs
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | /api/schedulers | List all schedulers |
+| GET | /api/schedulers/{name} | Scheduler detail + agents |
+| GET | /api/schedulers/{name}/agents | List agents for scheduler |
+
+### Job APIs
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | /api/schedulers/{name}/jobs | List jobs |
+| POST | /api/schedulers/{name}/jobs | Create job |
+| GET | /api/schedulers/{name}/jobs/{key} | Get job detail |
+| PUT | /api/schedulers/{name}/jobs/{key} | Update job |
+| DELETE | /api/schedulers/{name}/jobs/{key} | Delete job |
+| POST | /api/schedulers/{name}/jobs/{key}/trigger | Trigger job |
+| POST | /api/schedulers/{name}/jobs/{key}/pause | Pause job |
+| POST | /api/schedulers/{name}/jobs/{key}/resume | Resume job |
+
+### Manifest APIs
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | /api/schedulers/{name}/manifest | Get job manifest |
+| POST | /api/schedulers/{name}/manifest | Report job manifest |
 
 ---
 
-## Agent NuGet Package Structure
+## Agent NuGet Package Structure (v2.0.0)
 
 ```
 MinGo.Qap.Agent/
-├── MinGo.Qap.Agent.csproj          # Library project, net10.0
+├── MinGo.Qap.Agent.csproj
+├── AgentApiExtensions.cs           # Minimal API endpoints + schedulerName parsing
+├── AgentExtensions.cs              # DI registration + SchedulerAccessor setup
 ├── Services/
-│   ├── JobDiscoveryService.cs      # Assembly scanning
-│   ├── JobRegistrationService.cs   # Register with Quartz
-│   ├── LogCollectionService.cs      # Collect and report logs
-│   └── HeartbeatService.cs          # Platform heartbeat
+│   ├── IAgentSchedulerAccessor.cs      # Scheduler discovery interface
+│   ├── AgentSchedulerAccessor.cs       # Default implementation
+│   ├── DeferredSchedulerAccessor.cs    # Lazy discovery
+│   ├── IAgentIdentityStore.cs          # Identity persistence interface
+│   ├── AgentIdentityFileStore.cs       # File-based identity store
+│   ├── SchedulerReporterService.cs     # Scheduler info reporter
+│   ├── HostedAgentService.cs           # Lifecycle management
+│   ├── AgentRegistrationService.cs     # Registration service
+│   ├── QuartzService.cs                # Quartz operations (multi-scheduler)
+│   ├── JobDiscoveryService.cs          # Assembly scanning
+│   ├── JobRegistry.cs                  # Job type registry
+│   ├── JobConverter.cs                 # Job/trigger conversion
+│   └── ... (other services)
 ├── Configuration/
-│   ├── AgentOptions.cs             # Configuration options
-│   └── AgentExtensions.cs          # DI registration
-├── Contracts/
-│   └── (uses Shared library)        # No local contracts
-├── Quartz/
-│   ├── QuartzAgentModule.cs        # Quartz module (wrapper)
-│   └── JobWrapper.cs               # Wrapped job execution
-└── README.md                        # Integration guide
+│   ├── AgentConfig.cs                  # Configuration options
+│   ├── ConfigureAgentConfigOptions.cs  # Options setup
+│   └── ... (other config)
+└── README.md
 ```
 
 ---
 
-## Integration Flow
-
-### Application Adding Agent
-
-```csharp
-// In Program.cs of consumer application
-services.AddQuartzHostedService();
-services.AddMinGoAgent();  // Agent configures itself
-
-// appsettings.json
-{
-  "Agent": {
-    "ClusterId": "cls-001",
-    "PlatformUrl": "http://platform:5000",
-    "Token": "agent-secret"
-  }
-}
-```
+## Integration Flow (v2.0.0)
 
 ### Agent Startup Sequence
 
@@ -331,56 +253,116 @@ services.AddMinGoAgent();  // Agent configures itself
 Application Start
        │
        ▼
-Quartz Scheduler Starts
+IAgentSchedulerAccessor Initializes
        │
        ▼
-Agent JobDiscoveryService Scans Assemblies
+HostedAgentService Starts
+       │
+       ├── Phase 1: Load identity from agent-identity.json
+       │   ├── Found AgentId → reconnect
+       │   └── No AgentId → first registration
        │
        ▼
-Agent Registers with Platform
+Phase 2: POST /api/agents
+  { agentId?, name, url, agentVersion, startedAt }
        │
        ▼
-Agent Registers Discovered Jobs with Quartz
+← { agentId, token, heartbeatIntervalSeconds, ... }
        │
        ▼
-Agent Starts Heartbeat Service
+Phase 3: Save agent-identity.json (persist AgentId)
        │
        ▼
-Jobs Execute → Logs Reported to Platform
+Phase 4: IAgentSchedulerAccessor.GetAll() → all IScheduler instances
+       │   → Extract metadata from each scheduler
+       ▼
+POST /api/agents/{agentId}/schedulers (report all schedulers)
+       │
+       ▼
+Phase 5: Heartbeat loop
+  POST /api/agents/{agentId}/heartbeat
+  { schedulerSummaries: [...] }
 ```
 
----
+### Scheduler Name Resolution (Agent API)
 
-## Boundary Constraints (Updated)
-
-### Requirement: Agent without Web Interface
-- **GIVEN** Agent package
-- **WHEN** examining the built artifact
-- **THEN** there SHALL be NO controllers, NO routing, NO Kestrel configuration
-- **AND** Agent is purely a service library
-
-### Requirement: Agent without Platform Dependency
-- **GIVEN** Agent source code
-- **WHEN** checking dependencies
-- **THEN** there SHALL be NO reference to MinGo.Qap.Platform
-- **AND** Agent uses only Shared library for contracts
-
-### Requirement: Quartz.NET is the Foundation
-- **GIVEN** an application with Agent
-- **WHEN** scheduling jobs
-- **THEN** all scheduling goes through Quartz.NET APIs
-- **AND** Agent does NOT provide alternative scheduling mechanisms
-
-### Requirement: Fixed scheduling strategies
-- **GIVEN** job scheduling configuration
-- **WHEN** user configures schedule
-- **THEN** only three types are supported: cron, interval, once
-- **AND** custom scheduling strategies are NOT allowed
+Requests from Platform to Agent resolve the target scheduler via:
+1. `X-Scheduler-Name` HTTP header
+2. `?schedulerName=` query parameter
+3. Default first scheduler
 
 ---
 
-## Version History
+## Database Schema (v2.0.0)
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2026-04-24 | Initial architecture specification |
+### New Tables (Replacing Cluster/AgentInstance)
+
+**Agents**
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | varchar(64) | PK, agt-xxx format |
+| Name | varchar(256) | Display name |
+| Url | varchar(512) | Agent HTTP endpoint |
+| Status | varchar(32) | Pending/Online/Warning/Offline |
+| AgentVersion | varchar(64) | Optional |
+| TokenHash | varchar(256) | API token hash |
+| LastHeartbeat | timestamptz | UTC |
+| LastReportedAt | timestamptz | UTC |
+| StartedAt | timestamptz | UTC |
+| CreatedAt | timestamptz | UTC |
+| UpdatedAt | timestamptz | UTC |
+| DeletedAt | timestamptz? | Soft delete |
+
+**SchedulerInfos**
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | varchar(64) | PK, sch-xxx format |
+| SchedulerName | varchar(256) | Quartz scheduler name |
+| SchedulerInstanceId | varchar(256) | Quartz instance ID |
+| Status | varchar(32) | running/standby |
+| IsClustered | boolean | |
+| RunningSince | timestamptz? | UTC |
+| FirstReportedAt | timestamptz | UTC |
+| LastReportedAt | timestamptz | UTC |
+| UNIQUE(SchedulerName, SchedulerInstanceId) | | |
+
+**AgentSchedulers** (many-to-many)
+| Column | Type | Notes |
+|--------|------|-------|
+| AgentId | varchar(64) | FK → Agents |
+| SchedulerInfoId | varchar(64) | FK → SchedulerInfos |
+| ReportedAt | timestamptz | UTC |
+| PK(AgentId, SchedulerInfoId) | | |
+
+### Time Field Convention
+
+All time fields follow strict UTC convention:
+- **Code type**: `DateTimeOffset`
+- **Write**: `DateTimeOffset.UtcNow`
+- **DB column**: `timestamptz`
+- **Enforcement**: EF Core Value Converter + `UtcAuditInterceptor`
+
+---
+
+## Boundary Constraints (v2.0.0)
+
+### Agent without Web Interface
+- Agent provides Minimal API via extension method `MapMinGoAgentApi()`
+- Consumer app calls `app.MapMinGoAgentApi()` to enable endpoints
+- No embedded web server (Kestrel); consumer controls hosting
+
+### Agent without Platform Dependency
+- No reference to MinGo.Qap.Platform
+- Uses only Shared library for contracts
+- Communicates via HTTP REST (no shared DB)
+
+### Multi-Scheduler Support
+- Agent discovers ALL IScheduler instances via DI
+- Each operation targets a specific scheduler by name
+- DeferredSchedulerAccessor handles late scheduler initialization
+
+### UTC Time Convention
+- All new time fields: `DateTimeOffset` + `DateTimeOffset.UtcNow`
+- Database: `timestamptz`
+- API: ISO 8601 UTC string format
+- Migration: old `DateTime` fields to be migrated incrementally

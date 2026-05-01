@@ -1,5 +1,4 @@
 // Enums
-export type ClusterStatus = 'Pending' | 'Online' | 'Warning' | 'Offline' | 'Deleted';
 export type SyncStatus = 'Pending' | 'Synced' | 'Failed' | 'Timeout';
 export type ScheduleType = 'Once' | 'Cron' | 'Interval';
 export type MisfirePolicy = 'FireAndProceed' | 'IgnoreMisfire' | 'DoNothing';
@@ -26,45 +25,146 @@ export interface PagedQuery {
   pageSize: number;
 }
 
-// Cluster
-export interface ClusterDto {
+// Agent types
+export type AgentStatus = 'Pending' | 'Online' | 'Warning' | 'Offline' | 'Deleted';
+
+export interface AgentSummaryDto {
   id: string;
   name: string;
-  env: string;
-  agentUrl?: string; // 已弃用，使用实例列表
-  instanceCount: number;
-  status: ClusterStatus;
+  url: string;
+  status: string;
+  agentVersion?: string;
   lastHeartbeat?: string;
+  startedAt: string;
+  schedulerCount: number;
+}
+
+export interface AgentDetailDto {
+  id: string;
+  name: string;
+  url: string;
+  status: string;
+  agentVersion?: string;
+  lastHeartbeat?: string;
+  lastReportedAt?: string;
+  startedAt: string;
   createdAt: string;
+  updatedAt: string;
+  schedulers: AgentSchedulerDto[];
 }
 
-export interface ClusterSummaryDto {
-  id: string;
-  name: string;
-  env: string;
-  status: ClusterStatus;
-  lastHeartbeat?: string;
-  jobCount: number;
-  instanceCount: number;
-  healthyInstanceCount: number; // 状态为 Online 的实例数
+export interface AgentIdentity {
+  agentId: string;
+  registeredAt: string;
+  lastUpdatedAt: string;
 }
 
-export interface CreateClusterRequest {
-  name: string;
-  env: string;
-  agentUrl: string;
-  description?: string;
+export interface RegisterAgentRequest {
+  agentId?: string;
+  name?: string;
+  url: string;
+  agentVersion?: string;
+  startedAt: string;
 }
 
-export interface CreateClusterResponse {
-  id: string;
-  name: string;
+export interface RegisterAgentResponse {
+  agentId: string;
   token: string;
-  status: ClusterStatus;
-  createdAt: string;
+  heartbeatIntervalSeconds: number;
+  warningThresholdSeconds: number;
+  offlineThresholdSeconds: number;
 }
 
-// Job
+export interface AgentHeartbeatRequestV2 {
+  agentId: string;
+  status: string;
+  timestamp: string;
+  schedulerSummaries?: SchedulerStatusSummary[];
+  metadata?: Record<string, string>;
+}
+
+export interface AgentHeartbeatResponseV2 {
+  serverTime: string;
+  shouldReportSchedulers?: boolean;
+  nextHeartbeatIntervalSeconds?: number;
+}
+
+// Scheduler types
+export interface SchedulerInfoDto {
+  schedulerName: string;
+  schedulerInstanceId?: string;
+  status: string;
+  isClustered: boolean;
+  jobStoreType?: string;
+  threadPoolType?: string;
+  threadPoolSize: number;
+  runningSince?: string;
+  version?: string;
+  numberOfJobsExecuted: number;
+  jobCounts?: JobCountsDto;
+  properties?: Record<string, string>;
+}
+
+export interface SchedulerSummaryDto {
+  id: string;
+  schedulerName: string;
+  schedulerInstanceId?: string;
+  status: string;
+  isClustered: boolean;
+  runningSince?: string;
+  lastReportedAt: string;
+  agentCount: number;
+}
+
+export interface SchedulerDetailDto {
+  id: string;
+  schedulerName: string;
+  schedulerInstanceId?: string;
+  status: string;
+  isClustered: boolean;
+  jobStoreType?: string;
+  threadPoolType?: string;
+  threadPoolSize: number;
+  runningSince?: string;
+  version?: string;
+  numberOfJobsExecuted: number;
+  jobCounts?: JobCountsDto;
+  properties?: Record<string, string>;
+  firstReportedAt: string;
+  lastReportedAt: string;
+  agents: SchedulerAgentDto[];
+}
+
+export interface AgentSchedulerDto {
+  schedulerInfoId: string;
+  schedulerName: string;
+  schedulerInstanceId?: string;
+  status: string;
+  isClustered: boolean;
+  runningSince?: string;
+  reportedAt: string;
+}
+
+export interface SchedulerAgentDto {
+  agentId: string;
+  agentName: string;
+  agentUrl: string;
+  agentStatus: string;
+  reportedAt: string;
+}
+
+export interface SchedulerStatusSummary {
+  schedulerName: string;
+  status: string;
+  jobCount: number;
+  runningJobCount: number;
+}
+
+export interface SchedulerReportRequest {
+  schedulers: SchedulerInfoDto[];
+}
+
+// Job types
 export interface ScheduleDto {
   type: ScheduleType;
   cronExpression?: string;
@@ -93,7 +193,7 @@ export interface UpdateJobRequest {
 
 export interface JobDefinitionDto {
   id: string;
-  clusterId: string;
+  schedulerName: string;
   jobKey: string;
   jobType: string;
   params: string;
@@ -151,7 +251,6 @@ export interface JobTypeInfoDto {
 }
 
 export interface JobManifestDto {
-  clusterId: string;
   jobs: JobTypeInfoDto[];
 }
 
@@ -167,73 +266,19 @@ export interface HeartbeatDto {
 
 export interface JobCountsDto {
   total: number;
+  totalJobs: number;
   normal: number;
+  runningJobs: number;
   paused: number;
+  pausedJobs: number;
   blocked: number;
+  blockedJobs: number;
   executing: number;
+  waitingJobs: number;
 }
 
 export interface SystemMetricsDto {
   memoryUsedMb: number;
   memoryTotalMb: number;
   cpuPercent: number;
-}
-
-// Agent Instance
-export type AgentStatus = 'Pending' | 'Online' | 'Warning' | 'Offline' | 'Deleted';
-
-export interface AgentInstanceDto {
-  id: string;
-  clusterId: string;
-  name?: string;
-  url: string;
-  status: AgentStatus;
-  lastHeartbeat?: string;
-  quartzInstanceId?: string;
-  agentVersion?: string;
-  startedAt?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface AgentSummaryDto {
-  id: string;
-  name?: string;
-  url: string;
-  status: string;
-  lastHeartbeat?: string;
-  agentVersion?: string;
-  startedAt?: string;
-  createdAt: string;
-}
-
-export interface CreateAgentRequest {
-  name?: string;
-  url: string;
-  agentVersion?: string;
-  quartzInstanceId?: string;
-}
-
-export interface AgentRegistrationResponse {
-  agentId: string;
-  quartzInstanceId: string;
-  clusterId: string;
-  platformApiBaseUrl: string;
-  heartbeatIntervalSeconds: number;
-  warningThresholdSeconds: number;
-  offlineThresholdSeconds: number;
-}
-
-export interface AgentHeartbeatRequest {
-  agentId: string;
-  quartzInstanceId?: string;
-  agentVersion: string;
-  status: string;
-  metrics: string; // JSON string
-}
-
-export interface AgentHeartbeatResponse {
-  success: boolean;
-  message?: string;
-  nextHeartbeatIntervalSeconds?: number;
 }

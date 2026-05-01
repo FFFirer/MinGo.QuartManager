@@ -43,6 +43,15 @@ public static class AgentExtensions
         // Register HTTP client for Platform communication
         services.AddHttpClient();
 
+        // 2.3.1: Register IAgentSchedulerAccessor with priority chain
+        RegisterSchedulerAccessor(services);
+
+        // Register IAgentIdentityStore
+        services.AddSingleton<IAgentIdentityStore, AgentIdentityFileStore>();
+
+        // Register SchedulerReporterService
+        services.AddSingleton<SchedulerReporterService>();
+
         // Register discovery service (needed for manifest generation)
         services.AddSingleton<IJobDiscoveryService, JobDiscoveryService>();
 
@@ -56,7 +65,6 @@ public static class AgentExtensions
 
             var manifest = new JobManifestDto
             {
-                ClusterId = config.Agent.ClusterId,
                 Jobs = new List<JobTypeInfoDto>()
             };
 
@@ -128,4 +136,38 @@ public static class AgentExtensions
         return services;
     }
 
+    /// <summary>
+    /// 注册 IAgentSchedulerAccessor，支持多优先级检测
+    /// </summary>
+    private static void RegisterSchedulerAccessor(IServiceCollection services)
+    {
+        services.AddSingleton<IAgentSchedulerAccessor>(sp =>
+        {
+            // 优先级 1：宿主显式注册了 IAgentSchedulerAccessor
+            var explicitAccessor = sp.GetService<IAgentSchedulerAccessor>();
+            if (explicitAccessor != null) return explicitAccessor;
+
+            // 优先级 2：宿主有 IScheduler 集合（多 Scheduler 场景）
+            var schedulers = sp.GetServices<IScheduler>()?.ToList();
+            if (schedulers is { Count: > 0 })
+            {
+                return new AgentSchedulerAccessor(
+                    schedulers.ToDictionary(s => s.SchedulerName, s => s));
+            }
+
+            // 优先级 3：单 IScheduler（当前标准模式）
+            var singleScheduler = sp.GetService<IScheduler>();
+            if (singleScheduler != null)
+            {
+                return new AgentSchedulerAccessor(
+                    new Dictionary<string, IScheduler>
+                    {
+                        [singleScheduler.SchedulerName] = singleScheduler
+                    });
+            }
+
+            // 优先级 4：延迟发现（宿主 Scheduler 初始化可能晚于 Agent）
+            return new DeferredSchedulerAccessor(sp);
+        });
+    }
 }

@@ -15,6 +15,7 @@ public class HostedAgentService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<AgentConfig> _options;
     private readonly ILogger<HostedAgentService> _logger;
+    private readonly IAgentIdentityStore _identityStore;
 
     private AgentRegistrationInfo? _registrationInfo;
     private TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(30);
@@ -27,22 +28,53 @@ public class HostedAgentService : BackgroundService
         IAgentRegistrationService registrationService,
         IServiceProvider serviceProvider,
         IOptions<AgentConfig> options,
-        ILogger<HostedAgentService> logger)
+        ILogger<HostedAgentService> logger,
+        IAgentIdentityStore identityStore)
     {
         _registrationService = registrationService;
         _serviceProvider = serviceProvider;
         _options = options;
         _logger = logger;
+        _identityStore = identityStore;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("HostedAgentService started");
 
-        // Phase 1: Register with retry
+        // Phase 1: 读取本地身份
+        var identity = _identityStore.Load();
+        if (identity != null)
+        {
+            _logger.LogInformation("Loaded existing agent identity: {AgentId}, registered at {RegisteredAt:O}",
+                identity.AgentId, identity.RegisteredAt);
+        }
+        else
+        {
+            _logger.LogInformation("No existing agent identity found, will register as new agent");
+        }
+
+        // Phase 2: 注册（携带 AgentId 如果存在）
         await RegisterWithRetryAsync(stoppingToken);
 
-        // Phase 2: Heartbeat loop (only if registered)
+        // Phase 3: 如果注册成功，持久化身份并上报 Scheduler
+        if (_isRegistered && _registrationInfo != null)
+        {
+            // 持久化 AgentId
+            var newIdentity = new AgentIdentity
+            {
+                AgentId = _registrationInfo.AgentId,
+                RegisteredAt = DateTimeOffset.UtcNow,
+                LastUpdatedAt = DateTimeOffset.UtcNow
+            };
+            _identityStore.Save(newIdentity);
+            _logger.LogInformation("Agent identity persisted: {AgentId}", newIdentity.AgentId);
+
+            // Phase 4: 上报 Scheduler 信息
+            await ReportSchedulersAsync(stoppingToken);
+        }
+
+        // Phase 5: 心跳循环
         while (!stoppingToken.IsCancellationRequested && _isRegistered)
         {
             await SendHeartbeatAsync(stoppingToken);
@@ -56,7 +88,7 @@ public class HostedAgentService : BackgroundService
     {
         _logger.LogInformation("HostedAgentService stopping...");
 
-        // Phase 3: Deregister gracefully
+        // Phase 6: 优雅注销
         await DeregisterAsync();
 
         await base.StopAsync(cancellationToken);
@@ -177,6 +209,43 @@ public class HostedAgentService : BackgroundService
 
     #endregion
 
+    #region Scheduler Reporting
+
+    private async Task ReportSchedulersAsync(CancellationToken cancellationToken)
+    {
+        if (_registrationInfo == null)
+        {
+            _logger.LogWarning("Cannot report schedulers: not registered");
+            return;
+        }
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var reporter = scope.ServiceProvider.GetRequiredService<SchedulerReporterService>();
+
+            var success = await reporter.ReportAsync(
+                _registrationInfo.PlatformApiBaseUrl,
+                _registrationInfo.AgentId,
+                _registrationInfo.Token ?? string.Empty);
+
+            if (success)
+            {
+                _logger.LogInformation("Schedulers reported successfully");
+            }
+            else
+            {
+                _logger.LogWarning("Failed to report schedulers");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reporting schedulers");
+        }
+    }
+
+    #endregion
+
     #region Heartbeat
 
     private async Task SendHeartbeatAsync(CancellationToken cancellationToken)
@@ -201,41 +270,47 @@ public class HostedAgentService : BackgroundService
         try
         {
             using var scope = _serviceProvider.CreateScope();
-            var quartzService = scope.ServiceProvider.GetRequiredService<IQuartzService>();
+            var schedulerAccessor = scope.ServiceProvider.GetRequiredService<IAgentSchedulerAccessor>();
             var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
 
-            var schedulerState = await quartzService.GetSchedulerStateAsync();
-            var heartbeatRequest = BuildHeartbeatRequest(schedulerState);
+            // 获取所有 Scheduler 的状态摘要
+            var schedulerSummaries = GetSchedulerSummaries(schedulerAccessor);
+
+            var heartbeatRequest = new AgentHeartbeatRequestV2
+            {
+                AgentId = _registrationInfo.AgentId,
+                Status = "Online",
+                Timestamp = DateTimeOffset.UtcNow,  // 使用 UTC 时间
+                SchedulerSummaries = schedulerSummaries
+            };
 
             var httpClient = httpClientFactory.CreateClient();
             var response = await httpClient.PostAsJsonAsync(
-                $"{_registrationInfo.PlatformApiBaseUrl}/api/agents/{_registrationInfo.AgentId}/heartbeat",
+                $"{_registrationInfo.PlatformApiBaseUrl.TrimEnd('/')}/api/agents/{_registrationInfo.AgentId}/heartbeat",
                 heartbeatRequest,
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
-                var heartbeatResponse = await response.Content.ReadFromJsonAsync<AgentHeartbeatResponse>(cancellationToken);
-                if (heartbeatResponse?.Success == true)
-                {
-                    _logger.LogDebug("Heartbeat sent successfully to agent {AgentId}", _registrationInfo.AgentId);
-                    _consecutiveHeartbeatFailures = 0;
-                    _isRegistered = true;
+                var heartbeatResponse = await response.Content.ReadFromJsonAsync<AgentHeartbeatResponseV2>(cancellationToken);
+                _logger.LogDebug("Heartbeat sent successfully to agent {AgentId}", _registrationInfo.AgentId);
+                _consecutiveHeartbeatFailures = 0;
+                _isRegistered = true;
 
-                    // Dynamic interval update from heartbeat response
-                    if (heartbeatResponse.NextHeartbeatIntervalSeconds > 0 &&
-                        heartbeatResponse.NextHeartbeatIntervalSeconds != _heartbeatInterval.TotalSeconds)
-                    {
-                        _heartbeatInterval = TimeSpan.FromSeconds(heartbeatResponse.NextHeartbeatIntervalSeconds);
-                        _logger.LogInformation("Heartbeat interval updated from response: {Interval}s",
-                            _heartbeatInterval.TotalSeconds);
-                    }
-                }
-                else
+                // 检查是否需要重新上报 Scheduler
+                if (heartbeatResponse?.ShouldReportSchedulers == true)
                 {
-                    var error = heartbeatResponse?.Message ?? "Unknown error";
-                    _logger.LogWarning("Heartbeat response indicates failure: {Error}", error);
-                    HandleHeartbeatFailure();
+                    _logger.LogInformation("Platform requested scheduler re-report");
+                    await ReportSchedulersAsync(cancellationToken);
+                }
+
+                // Dynamic interval update from heartbeat response
+                if (heartbeatResponse?.NextHeartbeatIntervalSeconds > 0 &&
+                    heartbeatResponse.NextHeartbeatIntervalSeconds != _heartbeatInterval.TotalSeconds)
+                {
+                    _heartbeatInterval = TimeSpan.FromSeconds(heartbeatResponse.NextHeartbeatIntervalSeconds);
+                    _logger.LogInformation("Heartbeat interval updated from response: {Interval}s",
+                        _heartbeatInterval.TotalSeconds);
                 }
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
@@ -270,41 +345,40 @@ public class HostedAgentService : BackgroundService
         }
     }
 
-    private AgentHeartbeatRequest BuildHeartbeatRequest(SchedulerStateDto schedulerState)
+    private List<SchedulerStatusSummary> GetSchedulerSummaries(IAgentSchedulerAccessor schedulerAccessor)
     {
-        var process = Process.GetCurrentProcess();
-        var uptimeSeconds = (long)(DateTime.UtcNow - process.StartTime.ToUniversalTime()).TotalSeconds;
+        var summaries = new List<SchedulerStatusSummary>();
 
-        var agentVersion = GetAgentVersion();
-
-        var metrics = new
+        try
         {
-            timestamp = DateTime.UtcNow,
-            uptimeSeconds,
-            schedulerStatus = schedulerState.Status,
-            jobCounts = schedulerState.JobCounts,
-            system = new
+            var schedulers = schedulerAccessor.GetAll();
+            foreach (var kvp in schedulers)
             {
-                memoryUsedMb = process.WorkingSet64 / 1024 / 1024,
-                memoryTotalMb = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024,
-                cpuPercent = 0
+                try
+                {
+                    var scheduler = kvp.Value;
+                    var currentlyExecuting = scheduler.GetCurrentlyExecutingJobs().Result.Count;
+
+                    summaries.Add(new SchedulerStatusSummary
+                    {
+                        SchedulerName = scheduler.SchedulerName,
+                        Status = scheduler.IsStarted && !scheduler.InStandbyMode ? "running" : "standby",
+                        JobCount = scheduler.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<Quartz.JobKey>.AnyGroup()).Result.Count,
+                        RunningJobCount = currentlyExecuting
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to get status for scheduler {SchedulerName}", kvp.Key);
+                }
             }
-        };
-
-        return new AgentHeartbeatRequest
+        }
+        catch (Exception ex)
         {
-            AgentId = _registrationInfo?.AgentId ?? string.Empty,
-            QuartzInstanceId = _registrationInfo?.QuartzInstanceId,
-            AgentVersion = agentVersion,
-            Status = schedulerState.Status,
-            Metrics = JsonSerializer.Serialize(metrics)
-        };
-    }
+            _logger.LogError(ex, "Failed to get scheduler summaries");
+        }
 
-    private static string GetAgentVersion()
-    {
-        var assembly = System.Reflection.Assembly.GetEntryAssembly();
-        return assembly?.GetName().Version?.ToString() ?? "1.0.0";
+        return summaries;
     }
 
     #endregion
@@ -363,6 +437,10 @@ public class HostedAgentService : BackgroundService
                 }
 
                 _logger.LogInformation("Re-registration successful: {AgentId}", response.AgentId);
+
+                // 重新上报 Scheduler
+                await ReportSchedulersAsync(cancellationToken);
+
                 return;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

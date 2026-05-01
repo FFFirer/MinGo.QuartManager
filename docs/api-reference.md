@@ -1,109 +1,70 @@
-# API Reference - Agent Cluster Support
+# API Reference - Agent-Scheduler Platform v2
 
-本文档描述新增的 Agent 实例管理 API 端点。
+本文档描述 Agent-Scheduler 平台重构后的 API 端点。
 
 ## 概述
 
-新架构支持一个 Cluster 包含多个 Agent 实例，提供高可用性和水平扩展能力。
+v2 架构以 **Agent** 和 **Scheduler** 为核心，移除了 Cluster 概念。
+- Agent 自持身份（首次注册由 Platform 分配 AgentId，本地持久化，重启携带）
+- Agent 启动后自动上报所有 Scheduler 运行时信息
+- Job 操作面向 Scheduler 而非 Cluster
 
 ---
 
-## 新增端点
+## Agent API
 
-### 1. 注册 Agent 实例
+### 1. 注册 Agent
 
-注册新的 Agent 实例到指定集群。
+首次注册或重连。首次注册不带 agentId，Platform 分配新 ID；重连时携带已有 agentId。
 
 ```http
-POST /api/clusters/{clusterId}/agents
+POST /api/agents
 Headers:
-  X-Agent-Token: <token>
+  X-Agent-Token: <api-token>
 Body:
 {
-  "name": "agent-001",           // 可选，默认自动生成
-  "url": "http://agent:80",      // 必填，Agent 服务地址
-  "quartzInstanceId": "cls-001-host1-001"  // 可选
+  "agentId": null,                  // null=首次注册, "agt-xxx"=重连
+  "name": "agent-myhost",           // 可选
+  "url": "http://agent:8080",       // 必填
+  "agentVersion": "1.0.0",         // 可选
+  "startedAt": "2026-04-30T00:00:00Z"  // UTC 时间
 }
 Response (200):
 {
   "success": true,
   "data": {
-    "agentId": "uuid",
-    "quartzInstanceId": "cls-001-host1-001"
+    "agentId": "agt-a1b2c3d4e5f6",
+    "token": "<api-token>",
+    "heartbeatIntervalSeconds": 30,
+    "warningThresholdSeconds": 30,
+    "offlineThresholdSeconds": 60
   }
-}
-Response (401):
-{
-  "success": false,
-  "error": "Invalid token"
-}
-Response (409):
-{
-  "success": false,
-  "error": "Agent with this URL already exists"
 }
 ```
 
-### 2. 获取集群的所有实例
-
-列出集群的所有 Agent 实例。
+### 2. 获取 Agent 列表
 
 ```http
-GET /api/clusters/{clusterId}/agents?includeDeleted=false
+GET /api/agents
 Response (200):
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
-      "clusterId": "cls-001",
-      "name": "agent-001",
-      "url": "http://agent1:80",
-      "status": 1,
-      "statusText": "Online",
-      "lastHeartbeat": "2024-01-01T00:00:00Z",
-      "quartzInstanceId": "cls-001-host1-001",
+      "id": "agt-a1b2c3d4e5f6",
+      "name": "agent-myhost",
+      "url": "http://agent:8080",
+      "status": "Online",
       "agentVersion": "1.0.0",
-      "startedAt": "2024-01-01T00:00:00Z",
-      "createdAt": "2024-01-01T00:00:00Z"
+      "lastHeartbeat": "2026-04-30T00:00:00Z",
+      "startedAt": "2026-04-30T00:00:00Z",
+      "schedulerCount": 2
     }
   ]
 }
 ```
 
-### 3. Agent 心跳
-
-Agent 实例定期发送心跳以表明其可用性。
-
-```http
-POST /api/agents/{agentId}/heartbeat
-Body:
-{
-  "status": 1,                    // 必填，0=Pending, 1=Online, 2=Warning
-  "quartzInstanceId": "...",
-  "schedulerStatus": "Running",
-  "jobCount": 10,
-  "executingJobCount": 2
-}
-Response (200):
-{
-  "success": true,
-  "data": {
-    "instanceId": "uuid",
-    "lastHeartbeat": "2024-01-01T00:00:00Z",
-    "status": 1
-  }
-}
-Response (404):
-{
-  "success": false,
-  "error": "Agent instance not found"
-}
-```
-
-### 4. 获取单个实例
-
-获取特定 Agent 实例的详细信息。
+### 3. 获取 Agent 详情
 
 ```http
 GET /api/agents/{agentId}
@@ -111,134 +72,278 @@ Response (200):
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "clusterId": "cls-001",
-    "name": "agent-001",
-    "url": "http://agent1:80",
-    "status": 1,
-    "statusText": "Online",
-    "lastHeartbeat": "2024-01-01T00:00:00Z",
-    "quartzInstanceId": "cls-001-host1-001",
+    "id": "agt-a1b2c3d4e5f6",
+    "name": "agent-myhost",
+    "url": "http://agent:8080",
+    "status": "Online",
     "agentVersion": "1.0.0",
-    "startedAt": "2024-01-01T00:00:00Z",
-    "createdAt": "2024-01-01T00:00:00Z",
-    "metrics": {
-      "jobCount": 10,
-      "executingJobCount": 2,
-      "uptime": "1d 2h 30m"
-    }
+    "lastHeartbeat": "2026-04-30T00:00:00Z",
+    "lastReportedAt": "2026-04-30T00:00:00Z",
+    "startedAt": "2026-04-30T00:00:00Z",
+    "createdAt": "2026-04-30T00:00:00Z",
+    "updatedAt": "2026-04-30T00:00:00Z",
+    "schedulers": [
+      {
+        "schedulerInfoId": "sch-xxx",
+        "schedulerName": "DefaultQuartzScheduler",
+        "schedulerInstanceId": "HOSTNAME1234567890",
+        "status": "running",
+        "isClustered": true,
+        "runningSince": "2026-04-30T00:00:00Z",
+        "reportedAt": "2026-04-30T00:00:00Z"
+      }
+    ]
   }
 }
 ```
 
-### 5. 删除实例
-
-软删除 Agent 实例（标记为已删除）。
+### 4. 删除 Agent（软删除）
 
 ```http
 DELETE /api/agents/{agentId}
+Headers:
+  X-Agent-Token: <api-token>
+Response (200): { "success": true, "data": {} }
+```
+
+### 5. Agent 心跳
+
+```http
+POST /api/agents/{agentId}/heartbeat
+Body:
+{
+  "agentId": "agt-a1b2c3d4e5f6",
+  "status": "Online",
+  "timestamp": "2026-04-30T00:00:00Z",
+  "schedulerSummaries": [
+    {
+      "schedulerName": "DefaultQuartzScheduler",
+      "status": "running",
+      "jobCount": 10,
+      "runningJobCount": 2
+    }
+  ]
+}
 Response (200):
 {
   "success": true,
-  "data": { "success": true }
+  "data": {
+    "serverTime": "2026-04-30T00:00:00Z",
+    "shouldReportSchedulers": false
+  }
 }
 ```
 
----
+### 6. 上报 Scheduler 信息
 
-## 修改的端点
+```http
+POST /api/agents/{agentId}/schedulers
+Body:
+{
+  "schedulers": [
+    {
+      "schedulerName": "DefaultQuartzScheduler",
+      "schedulerInstanceId": "HOSTNAME1234567890",
+      "status": "running",
+      "isClustered": true,
+      "jobStoreType": "Quartz.Impl.AdoJobStore.JobStoreTX",
+      "threadPoolType": "Quartz.Simpl.SimpleThreadPool",
+      "threadPoolSize": 10,
+      "runningSince": "2026-04-30T00:00:00Z",
+      "version": "3.17.1.0",
+      "numberOfJobsExecuted": 42,
+      "jobCounts": {
+        "totalJobs": 10,
+        "runningJobs": 2,
+        "pausedJobs": 1,
+        "blockedJobs": 0,
+        "waitingJobs": 7
+      },
+      "properties": { "key": "value" }
+    }
+  ]
+}
+Response (200): { "success": true, "data": {} }
+```
 
-### 1. 集群列表
+### 7. 查询 Agent 关联的 Schedulers
 
-`GET /api/clusters` 响应增加 `instanceCount` 字段：
-
-```json
+```http
+GET /api/agents/{agentId}/schedulers
+Response (200):
 {
   "success": true,
   "data": [
     {
-      "id": "cls-001",
-      "name": "Production",
-      "status": 1,
-      "statusText": "Online",
-      "instanceCount": 3,
-      "onlineInstanceCount": 2,
-      "warningInstanceCount": 1,
-      "createdAt": "2024-01-01T00:00:00Z"
+      "schedulerInfoId": "sch-xxx",
+      "schedulerName": "DefaultQuartzScheduler",
+      "schedulerInstanceId": "HOSTNAME1234567890",
+      "status": "running",
+      "isClustered": true,
+      "runningSince": "2026-04-30T00:00:00Z",
+      "reportedAt": "2026-04-30T00:00:00Z"
     }
   ]
 }
 ```
 
-### 2. 集群详情
+---
 
-`GET /api/clusters/{id}` 响应增加实例列表：
+## Scheduler API
 
-```json
+### 8. 获取全局 Scheduler 列表
+
+```http
+GET /api/schedulers
+Response (200):
+{
+  "success": true,
+  "data": [
+    {
+      "id": "sch-xxx",
+      "schedulerName": "DefaultQuartzScheduler",
+      "schedulerInstanceId": "HOSTNAME1234567890",
+      "status": "running",
+      "isClustered": true,
+      "runningSince": "2026-04-30T00:00:00Z",
+      "lastReportedAt": "2026-04-30T00:00:00Z",
+      "agentCount": 2
+    }
+  ]
+}
+```
+
+### 9. 获取 Scheduler 详情
+
+```http
+GET /api/schedulers/{schedulerName}
+Response (200):
 {
   "success": true,
   "data": {
-    "id": "cls-001",
-    "name": "Production",
-    "status": 1,
-    "statusText": "Online",
-    "instances": [...],
-    "createdAt": "2024-01-01T00:00:00Z"
+    "id": "sch-xxx",
+    "schedulerName": "DefaultQuartzScheduler",
+    "schedulerInstanceId": "HOSTNAME1234567890",
+    "status": "running",
+    "isClustered": true,
+    "jobStoreType": "Quartz.Impl.AdoJobStore.JobStoreTX",
+    "threadPoolType": "Quartz.Simpl.SimpleThreadPool",
+    "threadPoolSize": 10,
+    "runningSince": "2026-04-30T00:00:00Z",
+    "version": "3.17.1.0",
+    "numberOfJobsExecuted": 42,
+    "firstReportedAt": "2026-04-30T00:00:00Z",
+    "lastReportedAt": "2026-04-30T00:00:00Z",
+    "agents": [
+      {
+        "agentId": "agt-a1b2c3d4e5f6",
+        "agentName": "agent-myhost",
+        "agentUrl": "http://agent:8080",
+        "agentStatus": "Online",
+        "reportedAt": "2026-04-30T00:00:00Z"
+      }
+    ]
   }
 }
 ```
 
----
+### 10. 获取 Scheduler 关联的 Agents
 
-## 状态码
-
-| 值 | 名称 | 描述 |
-|---|---|---|
-| 0 | Pending | 待注册 |
-| 1 | Online | 在线 |
-| 2 | Warning | 心跳延迟 |
-| 3 | Offline | 离线 |
-| 4 | Deleted | 已删除 |
-
-状态计算规则：
-- `Warning`: 超过 30 秒无心跳
-- `Offline`: 超过 60 秒无心跳
-
-集群状态计算：
-- `Online`: 至少 1 个实例 Online
-- `Warning`: 无 Online，至少 1 个 Warning
-- `Offline`: 无在线实例
-
----
-
-## 认证
-
-所有 Agent 相关端点需要 `X-Agent-Token` 头：
-
-```
-X-Agent-Token: <cluster-token>
-```
-
-平台使用集群的 Token 进行验证。
-
----
-
-## 错误响应
-
-所有错误响应格式：
-
-```json
+```http
+GET /api/schedulers/{schedulerName}/agents
+Response (200):
 {
-  "success": false,
-  "error": "错误消息"
+  "success": true,
+  "data": [ { "agentId": "agt-xxx", "agentName": "...", ... } ]
 }
 ```
 
-常见 HTTP 状态码：
-- `200`: 成功
-- `400`: 请求参数错误
-- `401`: 认证失败
-- `404`: 资源不存在
-- `409`: 冲突
-- `429`: 超过实例限制
-- `500`: 服务器错误
+---
+
+## Job API (通过 Scheduler 路由)
+
+### 11. 获取 Job 列表
+
+```http
+GET /api/schedulers/{schedulerName}/jobs?page=1&pageSize=20&status=&group=&keyword=
+Response (200): { "success": true, "data": [ ... ] }
+```
+
+### 12. 创建 Job
+
+```http
+POST /api/schedulers/{schedulerName}/jobs
+Body:
+{
+  "jobKey": "MyJob",
+  "jobType": "SampleJob",
+  "params": {},
+  "schedule": { "type": "cron", "cronExpression": "0 0/5 * * * ?" },
+  "options": { "disallowConcurrentExecution": false, "misfirePolicy": "FireAndProceed" }
+}
+Response (200): { "success": true, "data": { ... } }
+```
+
+### 13. 其他 Job 操作
+
+```http
+GET    /api/schedulers/{schedulerName}/jobs/{jobKey}         # 详情
+PUT    /api/schedulers/{schedulerName}/jobs/{jobKey}          # 更新
+DELETE /api/schedulers/{schedulerName}/jobs/{jobKey}          # 删除
+POST   /api/schedulers/{schedulerName}/jobs/{jobKey}/trigger  # 触发
+POST   /api/schedulers/{schedulerName}/jobs/{jobKey}/pause    # 暂停
+POST   /api/schedulers/{schedulerName}/jobs/{jobKey}/resume   # 恢复
+```
+
+---
+
+## Manifest API
+
+```http
+GET  /api/schedulers/{schedulerName}/manifest    # 获取 Job 类型清单
+POST /api/schedulers/{schedulerName}/manifest    # 上报 Job 类型清单
+```
+
+---
+
+## 废弃端点（301 重定向）
+
+以下旧端点仍可用，但返回 301 永久重定向：
+
+| 旧端点 | 新端点 |
+|--------|--------|
+| `POST /api/clusters/{id}/agents` | `POST /api/agents` |
+| `GET /api/clusters/{id}/agents` | `GET /api/agents` |
+| `POST /api/clusters/{id}/jobs` | `POST /api/schedulers/{id}/jobs` |
+| `GET /api/clusters/{id}/jobs` | `GET /api/schedulers/{id}/jobs` |
+| `GET /api/clusters/{id}/jobs/{key}` | `GET /api/schedulers/{id}/jobs/{key}` |
+| `POST /api/clusters` | 已删除，返回 301 |
+
+---
+
+## 时间字段约定
+
+所有时间字段使用 ISO 8601 UTC 格式（`DateTimeOffset`）：
+- **写入**: `DateTimeOffset.UtcNow`，偏移量 +00:00
+- **存储**: PostgreSQL `timestamptz` 类型
+- **读取**: 统一返回 UTC 时间
+- **示例**: `"2026-04-30T12:00:00Z"`
+
+---
+
+## 状态枚举
+
+### Agent Status
+| 值 | 说明 |
+|-----|------|
+| `Pending` | 刚注册，等待首次心跳 |
+| `Online` | 正常在线 |
+| `Warning` | 心跳超时（Warning 阈值内） |
+| `Offline` | 已离线 |
+
+### Scheduler Status
+| 值 | 说明 |
+|-----|------|
+| `running` | 调度器正在运行 |
+| `standby` | 调度器待机 |
+| `unknown` | 状态未知 |

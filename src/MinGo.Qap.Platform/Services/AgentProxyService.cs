@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using MinGo.Qap.Platform.Data;
-using MinGo.Qap.Shared.Enums;
 using MinGo.Qap.Shared.Models;
 using System.Net.Http.Json;
-using System.Text.Json;
 
 namespace MinGo.Qap.Platform.Services;
 
@@ -12,117 +10,130 @@ namespace MinGo.Qap.Platform.Services;
 /// </summary>
 public interface IAgentProxyService
 {
-    Task<T?> GetAsync<T>(string clusterId, string path);
-    Task<T?> PostAsync<T>(string clusterId, string path, object body);
-    Task<T?> PutAsync<T>(string clusterId, string path, object body);
-    Task DeleteAsync(string clusterId, string path);
-    Task<bool> IsHealthyAsync(string clusterId);
+    Task<T?> GetAsync<T>(string schedulerName, string path);
+    Task<T?> PostAsync<T>(string schedulerName, string path, object body);
+    Task<T?> PutAsync<T>(string schedulerName, string path, object body);
+    Task DeleteAsync(string schedulerName, string path);
+    Task<bool> IsHealthyAsync(string schedulerName);
 }
 
 /// <summary>
 /// Agent 代理服务实现
+/// 通过 SchedulerRouterService 选择 Agent，并在转发时设置 X-Scheduler-Name 请求头
 /// </summary>
 public class AgentProxyService : IAgentProxyService
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly PlatformDbContext _dbContext;
     private readonly ILogger<AgentProxyService> _logger;
-    private readonly IAgentInstanceService _agentInstanceService;
-    private readonly IAgentSelectionStrategy _selectionStrategy;
+    private readonly SchedulerRouterService _schedulerRouterService;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    
-    private const string AgentInstanceIdHeader = "X-Agent-Instance-Id";
+
+    private const string SchedulerNameHeader = "X-Scheduler-Name";
 
     public AgentProxyService(
         IHttpClientFactory httpClientFactory,
         PlatformDbContext dbContext,
         ILogger<AgentProxyService> logger,
-        IAgentInstanceService agentInstanceService,
-        IAgentSelectionStrategy selectionStrategy,
+        SchedulerRouterService schedulerRouterService,
         IHttpContextAccessor httpContextAccessor)
     {
         _httpClientFactory = httpClientFactory;
         _dbContext = dbContext;
         _logger = logger;
-        _agentInstanceService = agentInstanceService;
-        _selectionStrategy = selectionStrategy;
+        _schedulerRouterService = schedulerRouterService;
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public async Task<T?> GetAsync<T>(string clusterId, string path)
+    /// <summary>
+    /// 根据 SchedulerName 选择一个健康的 Agent，并转发 GET 请求
+    /// 转发时设置 X-Scheduler-Name 请求头，指示 Agent 使用哪个 Scheduler
+    /// </summary>
+    public async Task<T?> GetAsync<T>(string schedulerName, string path)
     {
-        var agentInstance = await GetAgentInstanceAsync(clusterId);
-        if (agentInstance == null)
+        var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+        if (agent == null)
         {
-            throw new AgentException($"No healthy agent instances available for cluster {clusterId}", "NO_HEALTHY_INSTANCES");
+            throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
         }
-        
-        var client = CreateClient(agentInstance.Url);
-        var response = await client.GetAsync($"/api/{path}");
-        return await HandleResponse<T>(response, clusterId, path);
+
+        var client = CreateClient(agent.Url);
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/{path}");
+        request.Headers.Add(SchedulerNameHeader, schedulerName);
+
+        var response = await client.SendAsync(request);
+        return await HandleResponse<T>(response, schedulerName, path);
     }
 
-    public async Task<T?> PostAsync<T>(string clusterId, string path, object body)
+    public async Task<T?> PostAsync<T>(string schedulerName, string path, object body)
     {
-        var agentInstance = await GetAgentInstanceAsync(clusterId);
-        if (agentInstance == null)
+        var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+        if (agent == null)
         {
-            throw new AgentException($"No healthy agent instances available for cluster {clusterId}", "NO_HEALTHY_INSTANCES");
+            throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
         }
-        
-        var client = CreateClient(agentInstance.Url);
-        var response = await client.PostAsJsonAsync($"/api/{path}", body);
-        return await HandleResponse<T>(response, clusterId, path);
+
+        var client = CreateClient(agent.Url);
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/{path}");
+        request.Headers.Add(SchedulerNameHeader, schedulerName);
+        request.Content = JsonContent.Create(body);
+
+        var response = await client.SendAsync(request);
+        return await HandleResponse<T>(response, schedulerName, path);
     }
 
-    public async Task<T?> PutAsync<T>(string clusterId, string path, object body)
+    public async Task<T?> PutAsync<T>(string schedulerName, string path, object body)
     {
-        var agentInstance = await GetAgentInstanceAsync(clusterId);
-        if (agentInstance == null)
+        var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+        if (agent == null)
         {
-            throw new AgentException($"No healthy agent instances available for cluster {clusterId}", "NO_HEALTHY_INSTANCES");
+            throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
         }
-        
-        var client = CreateClient(agentInstance.Url);
-        var response = await client.PutAsJsonAsync($"/api/{path}", body);
-        return await HandleResponse<T>(response, clusterId, path);
+
+        var client = CreateClient(agent.Url);
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/{path}");
+        request.Headers.Add(SchedulerNameHeader, schedulerName);
+        request.Content = JsonContent.Create(body);
+
+        var response = await client.SendAsync(request);
+        return await HandleResponse<T>(response, schedulerName, path);
     }
 
-    public async Task DeleteAsync(string clusterId, string path)
+    public async Task DeleteAsync(string schedulerName, string path)
     {
-        var agentInstance = await GetAgentInstanceAsync(clusterId);
-        if (agentInstance == null)
+        var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+        if (agent == null)
         {
-            throw new AgentException($"No healthy agent instances available for cluster {clusterId}", "NO_HEALTHY_INSTANCES");
+            throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
         }
-        
-        var client = CreateClient(agentInstance.Url);
-        var response = await client.DeleteAsync($"/api/{path}");
-        
+
+        var client = CreateClient(agent.Url);
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/{path}");
+        request.Headers.Add(SchedulerNameHeader, schedulerName);
+
+        var response = await client.SendAsync(request);
+
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
             _logger.LogError(
-                "Agent request failed: {ClusterId} {Path} - {StatusCode}: {Error}",
-                clusterId, path, response.StatusCode, error);
-            
+                "Agent request failed: {SchedulerName} {Path} - {StatusCode}: {Error}",
+                schedulerName, path, response.StatusCode, error);
+
             throw new AgentException(
                 $"Agent request failed: {response.StatusCode}",
                 response.StatusCode.ToString());
         }
     }
 
-    public async Task<bool> IsHealthyAsync(string clusterId)
+    public async Task<bool> IsHealthyAsync(string schedulerName)
     {
         try
         {
-            var agentInstance = await GetAgentInstanceAsync(clusterId);
-            if (agentInstance == null)
-            {
-                return false;
-            }
-            
-            var client = CreateClient(agentInstance.Url, shortTimeout: true);
+            var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+            if (agent == null) return false;
+
+            var client = CreateClient(agent.Url, shortTimeout: true);
             var response = await client.GetAsync("/health");
             return response.IsSuccessStatusCode;
         }
@@ -134,60 +145,11 @@ public class AgentProxyService : IAgentProxyService
 
     #region Helper Methods
 
-    private async Task<AgentInstanceDto?> GetAgentInstanceAsync(string clusterId)
-    {
-        // 检查是否通过请求头指定了实例 ID
-        var instanceId = GetRequestedInstanceId();
-        if (!string.IsNullOrEmpty(instanceId))
-        {
-            var instance = await _agentInstanceService.GetInstanceAsync(instanceId);
-            if (instance != null && instance.ClusterId == clusterId && instance.Status == AgentStatus.Online)
-            {
-                _logger.LogDebug("Using requested agent instance {InstanceId} for cluster {ClusterId}", instanceId, clusterId);
-                return instance;
-            }
-            else
-            {
-                _logger.LogWarning("Requested agent instance {InstanceId} not found, not online, or not part of cluster {ClusterId}", instanceId, clusterId);
-            }
-        }
-        
-        // 获取集群的健康实例
-        var healthyInstances = await _agentInstanceService.GetHealthyInstancesAsync(clusterId);
-        if (healthyInstances.Count == 0)
-        {
-            _logger.LogWarning("No healthy agent instances available for cluster {ClusterId}", clusterId);
-            return null;
-        }
-        
-        // 使用选择策略选择实例
-        var selectedInstance = _selectionStrategy.SelectInstance(clusterId, healthyInstances);
-        if (selectedInstance != null)
-        {
-            _logger.LogDebug("Selected agent instance {InstanceId} ({Url}) for cluster {ClusterId} using {Strategy} strategy", 
-                selectedInstance.Id, selectedInstance.Url, clusterId, _selectionStrategy.Name);
-        }
-        
-        return selectedInstance;
-    }
-    
-    private string? GetRequestedInstanceId()
-    {
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext?.Request?.Headers != null && 
-            httpContext.Request.Headers.TryGetValue(AgentInstanceIdHeader, out var instanceIdHeader))
-        {
-            return instanceIdHeader.ToString();
-        }
-        
-        return null;
-    }
-
     private HttpClient CreateClient(string agentUrl, bool shortTimeout = false)
     {
         var client = _httpClientFactory.CreateClient();
-        client.BaseAddress = new Uri(agentUrl);
-        
+        client.BaseAddress = new Uri(agentUrl.TrimEnd('/'));
+
         if (shortTimeout)
         {
             client.Timeout = TimeSpan.FromSeconds(5);
@@ -200,7 +162,7 @@ public class AgentProxyService : IAgentProxyService
         return client;
     }
 
-    private async Task<T?> HandleResponse<T>(HttpResponseMessage response, string clusterId, string path)
+    private async Task<T?> HandleResponse<T>(HttpResponseMessage response, string schedulerName, string path)
     {
         if (response.IsSuccessStatusCode)
         {
@@ -214,8 +176,8 @@ public class AgentProxyService : IAgentProxyService
 
         var error = await response.Content.ReadAsStringAsync();
         _logger.LogError(
-            "Agent request failed: {ClusterId} {Path} - {StatusCode}: {Error}",
-            clusterId, path, response.StatusCode, error);
+            "Agent request failed: scheduler {SchedulerName} {Path} - {StatusCode}: {Error}",
+            schedulerName, path, response.StatusCode, error);
 
         throw new AgentException(
             $"Agent request failed: {response.StatusCode}",

@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using MinGo.Qap.Platform.BackgroundServices;
 using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.Services;
 using Serilog;
@@ -15,37 +14,36 @@ builder.Host.UseSerilog();
 // 1. 添加 Controllers
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// builder.Services.AddSwaggerGen(); // Add Swashbuckle package to enable
 
 // 2. 添加数据库
 var connectionString = builder.Configuration.GetConnectionString("PlatformDb") 
     ?? "Host=localhost;Database=MinGoQap;Username=postgres;Password=postgres";
 
 builder.Services.AddDbContext<PlatformDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(connectionString)
+           .AddInterceptors(new UtcAuditInterceptor()));
 
 // 3. 添加 HTTP Client
 builder.Services.AddHttpClient();
 
 // 4. 添加服务
-builder.Services.AddScoped<IClusterService, ClusterService>();
+builder.Services.AddScoped<AgentService>();
+builder.Services.AddScoped<SchedulerService>();
+builder.Services.AddScoped<SchedulerRouterService>();
 builder.Services.AddScoped<IAgentProxyService, AgentProxyService>();
 builder.Services.AddScoped<IJobService, JobService>();
-builder.Services.AddScoped<IAgentInstanceService, AgentInstanceService>();
-builder.Services.AddSingleton<IAgentSelectionStrategy, RandomSelectionStrategy>();
 builder.Services.AddHttpContextAccessor();
-
-// 5. 添加状态检查后台服务（可选）
-builder.Services.AddHostedService<ClusterStatusMonitorService>();
 
 var app = builder.Build();
 
 // 6. 配置 HTTP 管道
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Swagger disabled temporarily (package unavailable in offline NuGet cache)
+// if (app.Environment.IsDevelopment())
+// {
+//     app.UseSwagger();
+//     app.UseSwaggerUI();
+// }
 
 // app.UseHttpsRedirection();
 app.UseAuthorization();

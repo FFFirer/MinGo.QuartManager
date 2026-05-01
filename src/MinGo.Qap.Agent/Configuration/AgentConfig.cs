@@ -37,8 +37,9 @@ public class AgentSettings
     public string? Id { get; set; }
     
     /// <summary>
-    /// 所属 Cluster ID（必填）
+    /// 所属 Cluster ID（已废弃，不再使用）
     /// </summary>
+    [Obsolete("Cluster concept has been removed. This property is no longer used.")]
     public string ClusterId { get; set; } = string.Empty;
     
     /// <summary>

@@ -133,4 +133,9 @@ public class AgentSummaryDto
     /// 创建时间
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// 关联的 Scheduler 数量
+    /// </summary>
+    public int SchedulerCount { get; set; }
 }

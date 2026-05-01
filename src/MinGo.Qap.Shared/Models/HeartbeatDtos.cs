@@ -42,10 +42,15 @@ public class HeartbeatDto
 public class JobCountsDto
 {
     public int Total { get; set; }
+    public int TotalJobs { get; set; }
     public int Normal { get; set; }
+    public int RunningJobs { get; set; }
     public int Paused { get; set; }
+    public int PausedJobs { get; set; }
     public int Blocked { get; set; }
+    public int BlockedJobs { get; set; }
     public int Executing { get; set; }
+    public int WaitingJobs { get; set; }
 }
 
 /// <summary>

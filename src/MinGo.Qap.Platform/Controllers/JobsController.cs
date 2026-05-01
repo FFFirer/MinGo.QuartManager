@@ -8,7 +8,7 @@ namespace MinGo.Qap.Platform.Controllers;
 /// Job 管理控制器
 /// </summary>
 [ApiController]
-[Route("api/clusters/{clusterId}/jobs")]
+[Route("api/schedulers/{schedulerName}/jobs")]
 public class JobsController : ControllerBase
 {
     private readonly IJobService _jobService;
@@ -25,7 +25,7 @@ public class JobsController : ControllerBase
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<JobSummaryDto>>>> GetList(
-        string clusterId,
+        string schedulerName,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? status = null,
@@ -41,7 +41,7 @@ public class JobsController : ControllerBase
             Keyword = keyword
         };
 
-        var jobs = await _jobService.GetByClusterAsync(clusterId, query);
+        var jobs = await _jobService.GetBySchedulerAsync(schedulerName, query);
         return Ok(ApiResponse<List<JobSummaryDto>>.Ok(jobs));
     }
 
@@ -49,9 +49,9 @@ public class JobsController : ControllerBase
     /// 获取 Job 详情
     /// </summary>
     [HttpGet("{jobKey}")]
-    public async Task<ActionResult<ApiResponse<JobDefinitionDto>>> Get(string clusterId, string jobKey)
+    public async Task<ActionResult<ApiResponse<JobDefinitionDto>>> Get(string schedulerName, string jobKey)
     {
-        var job = await _jobService.GetAsync(clusterId, jobKey);
+        var job = await _jobService.GetAsync(schedulerName, jobKey);
         if (job == null)
         {
             return NotFound(ApiResponse<JobDefinitionDto>.Fail("Job not found"));
@@ -64,11 +64,11 @@ public class JobsController : ControllerBase
     /// 创建 Job
     /// </summary>
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<JobDefinitionDto>>> Create(string clusterId, [FromBody] CreateJobRequest request)
+    public async Task<ActionResult<ApiResponse<JobDefinitionDto>>> Create(string schedulerName, [FromBody] CreateJobRequest request)
     {
         try
         {
-            var job = await _jobService.CreateAsync(clusterId, request);
+            var job = await _jobService.CreateAsync(schedulerName, request);
             return Ok(ApiResponse<JobDefinitionDto>.Ok(job));
         }
         catch (AgentException ex)
@@ -88,13 +88,13 @@ public class JobsController : ControllerBase
     /// </summary>
     [HttpPut("{jobKey}")]
     public async Task<ActionResult<ApiResponse<object>>> Update(
-        string clusterId, 
-        string jobKey, 
+        string schedulerName,
+        string jobKey,
         [FromBody] UpdateJobRequest request)
     {
         try
         {
-            await _jobService.UpdateAsync(clusterId, jobKey, request);
+            await _jobService.UpdateAsync(schedulerName, jobKey, request);
             return Ok(ApiResponse<object>.Ok(new { }));
         }
         catch (AgentException ex)
@@ -111,11 +111,11 @@ public class JobsController : ControllerBase
     /// 删除 Job
     /// </summary>
     [HttpDelete("{jobKey}")]
-    public async Task<ActionResult<ApiResponse<object>>> Delete(string clusterId, string jobKey)
+    public async Task<ActionResult<ApiResponse<object>>> Delete(string schedulerName, string jobKey)
     {
         try
         {
-            await _jobService.DeleteAsync(clusterId, jobKey);
+            await _jobService.DeleteAsync(schedulerName, jobKey);
             return Ok(ApiResponse<object>.Ok(new { }));
         }
         catch (AgentException ex)
@@ -132,11 +132,11 @@ public class JobsController : ControllerBase
     /// 手动触发 Job
     /// </summary>
     [HttpPost("{jobKey}/trigger")]
-    public async Task<ActionResult<ApiResponse<object>>> Trigger(string clusterId, string jobKey)
+    public async Task<ActionResult<ApiResponse<object>>> Trigger(string schedulerName, string jobKey)
     {
         try
         {
-            await _jobService.TriggerAsync(clusterId, jobKey);
+            await _jobService.TriggerAsync(schedulerName, jobKey);
             return Ok(ApiResponse<object>.Ok(new { }));
         }
         catch (AgentException ex)
@@ -153,11 +153,11 @@ public class JobsController : ControllerBase
     /// 暂停 Job
     /// </summary>
     [HttpPost("{jobKey}/pause")]
-    public async Task<ActionResult<ApiResponse<object>>> Pause(string clusterId, string jobKey)
+    public async Task<ActionResult<ApiResponse<object>>> Pause(string schedulerName, string jobKey)
     {
         try
         {
-            await _jobService.PauseAsync(clusterId, jobKey);
+            await _jobService.PauseAsync(schedulerName, jobKey);
             return Ok(ApiResponse<object>.Ok(new { }));
         }
         catch (AgentException ex)
@@ -174,11 +174,11 @@ public class JobsController : ControllerBase
     /// 恢复 Job
     /// </summary>
     [HttpPost("{jobKey}/resume")]
-    public async Task<ActionResult<ApiResponse<object>>> Resume(string clusterId, string jobKey)
+    public async Task<ActionResult<ApiResponse<object>>> Resume(string schedulerName, string jobKey)
     {
         try
         {
-            await _jobService.ResumeAsync(clusterId, jobKey);
+            await _jobService.ResumeAsync(schedulerName, jobKey);
             return Ok(ApiResponse<object>.Ok(new { }));
         }
         catch (AgentException ex)

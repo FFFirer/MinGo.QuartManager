@@ -1,305 +1,230 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useJob, useUpdateJob, useDeleteJob, useTriggerJob, usePauseJob, useResumeJob } from '../hooks/useClusters';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Pause, Square, Trash2, ArrowLeft, Clock, Calendar } from 'lucide-react';
 import type { UpdateJobRequest, JobDetailDto } from '../types';
+import { jobApi } from '../api';
 import StatusBadge from '../components/StatusBadge';
-import PageHeader from '../components/PageHeader';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
 
 const JobDetailPage: React.FC = () => {
-  const { clusterId, jobKey } = useParams<{ clusterId: string; jobKey: string }>();
+  const { schedulerName, jobKey } = useParams<{ schedulerName: string; jobKey: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [editParams, setEditParams] = useState<Record<string, any>>({});
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
-  const { data: job, isLoading, error } = useJob(clusterId || '', jobKey || '') as { data: JobDetailDto | undefined; isLoading: boolean; error: any };
-  const updateJob = useUpdateJob(clusterId || '', jobKey || '');
-  const deleteJob = useDeleteJob(clusterId || '');
-  const triggerJob = useTriggerJob(clusterId || '');
-  const pauseJob = usePauseJob(clusterId || '');
-  const resumeJob = useResumeJob(clusterId || '');
+  const decodedSchedulerName = schedulerName ? decodeURIComponent(schedulerName) : '';
+  const decodedJobKey = jobKey ? decodeURIComponent(jobKey) : '';
+
+  const { data: job, isLoading, error } = useQuery({
+    queryKey: ['job', decodedSchedulerName, decodedJobKey],
+    queryFn: async () => {
+      const response = await jobApi.get(decodedSchedulerName, decodedJobKey);
+      if (!response.success) throw new Error(response.errorMessage);
+      return response.data;
+    },
+    enabled: !!decodedSchedulerName && !!decodedJobKey,
+  });
+
+  const triggerJob = useMutation({
+    mutationFn: () => jobApi.trigger(decodedSchedulerName, decodedJobKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job', decodedSchedulerName, decodedJobKey] });
+    },
+  });
+
+  const pauseJob = useMutation({
+    mutationFn: () => jobApi.pause(decodedSchedulerName, decodedJobKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job', decodedSchedulerName, decodedJobKey] });
+    },
+  });
+
+  const resumeJob = useMutation({
+    mutationFn: () => jobApi.resume(decodedSchedulerName, decodedJobKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job', decodedSchedulerName, decodedJobKey] });
+    },
+  });
+
+  const deleteJob = useMutation({
+    mutationFn: () => jobApi.delete(decodedSchedulerName, decodedJobKey),
+    onSuccess: () => {
+      navigate(`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs`);
+    },
+    onError: (err: Error) => alert('Failed to delete job: ' + err.message),
+  });
 
   const handleDelete = async () => {
     try {
-      await deleteJob.mutateAsync(jobKey || '');
-      navigate(`/clusters/${clusterId}/jobs`);
+      await deleteJob.mutateAsync();
     } catch (err: any) {
       alert('Failed to delete job: ' + err.message);
     }
   };
 
-  const handleSave = async () => {
-    const request: UpdateJobRequest = {
-      params: editParams,
-    };
-
-    try {
-      await updateJob.mutateAsync(request);
-      setIsEditing(false);
-    } catch (err: any) {
-      alert('Failed to update job: ' + err.message);
-    }
-  };
-
   if (isLoading) {
-    return <div className="p-8 text-slate-400">Loading...</div>;
+    return <div className="p-6"><LoadingSkeleton /></div>;
   }
 
   if (error) {
-    return <div className="p-8 text-red-400">Error: {error.message}</div>;
-  }
-
-  if (!job) {
-    return <div className="p-8 text-slate-400">Job not found</div>;
-  }
-
-  return (
-    <>
-    
-    <div className="p-6">
-       <PageHeader 
-          title={`${job?.jobKey ?? 'Job Details'}`}
-          backPath={`/clusters/${clusterId}/jobs`}
-          status={job ? <StatusBadge status={job.status} size="sm" showLabel={true} variant="badge" /> : null}
-          actions={(
-            <div className="flex gap-2">
-              {job.status === 'paused' ? (
-                <button
-                  onClick={() => resumeJob.mutate(job.jobKey)}
-                  className="btn-primary flex items-center gap-2"
-                >
-                  <Play size={16} />
-                  Resume
-                </button>
-              ) : (
-                <button
-                  onClick={() => pauseJob.mutate(job.jobKey)}
-                  className="btn-secondary flex items-center gap-2"
-                >
-                  <Pause size={16} />
-                  Pause
-                </button>
-              )}
-              <button
-                onClick={() => triggerJob.mutate(job.jobKey)}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Play size={16} />
-                Trigger Now
-              </button>
-              <button
-                onClick={() => {
-                  setIsDeleteConfirmOpen(true);
-                }}
-                className="btn-danger flex items-center gap-2"
-              >
-                <Trash2 size={16} />
-                Delete
-              </button>
-            </div>
-          )}
-        />
-
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Info */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Basic Info */}
-          <div className="card">
-            <h3 className="text-lg font-semibold text-slate-50 mb-4">Job Information</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-slate-400">Type:</span>
-                <span className="ml-2 text-slate-50">{job.jobType}</span>
-              </div>
-              <div>
-                <span className="text-slate-400">Group:</span>
-                <span className="ml-2 text-slate-50">{job.group}</span>
-              </div>
-              <div>
-                <span className="text-slate-400">Description:</span>
-                <span className="ml-2 text-slate-50">{job.description || '-'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Schedule */}
-          <div className="card">
-            <h3 className="text-lg font-semibold text-slate-50 mb-4 flex items-center gap-2">
-              <Calendar size={18} />
-              Schedule
-            </h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center justify-between py-2 border-b border-slate-700">
-                <span className="text-slate-400">Type</span>
-                <span className="text-slate-50 capitalize">{job.schedule.type}</span>
-              </div>
-              
-              {job.schedule.cronExpression && (
-                <div className="flex items-center justify-between py-2 border-b border-slate-700">
-                  <span className="text-slate-400">Cron Expression</span>
-                  <code className="text-slate-50 bg-slate-700 px-2 py-1 rounded font-mono">
-                    {job.schedule.cronExpression}
-                  </code>
-                </div>
-              )}
-              
-              {job.schedule.intervalSeconds && (
-                <div className="flex items-center justify-between py-2 border-b border-slate-700">
-                  <span className="text-slate-400">Interval</span>
-                  <span className="text-slate-50">{job.schedule.intervalSeconds} seconds</span>
-                </div>
-              )}
-              
-              <div className="flex items-center justify-between py-2">
-                <span className="text-slate-400 flex items-center gap-2">
-                  <Clock size={14} />
-                  Next Run
-                </span>
-                <span className="text-slate-50">
-                  {job.nextFireTime 
-                    ? new Date(job.nextFireTime).toLocaleString() 
-                    : '-'}
-                </span>
-              </div>
-              
-              {job.previousFireTime && (
-                <div className="flex items-center justify-between py-2 border-t border-slate-700">
-                  <span className="text-slate-400">Previous Run</span>
-                  <span className="text-slate-50">
-                    {new Date(job.previousFireTime).toLocaleString()}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Parameters */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-slate-50">Parameters</h3>
-              {!isEditing && (
-                <button
-                  onClick={() => {
-                    setEditParams(job.params || {});
-                    setIsEditing(true);
-                  }}
-                  className="text-sm text-blue-400 hover:text-blue-300"
-                >
-                  Edit
-                </button>
-              )}
-            </div>
-            
-            {isEditing ? (
-              <div className="space-y-3">
-                {Object.entries(editParams).map(([key, value]) => (
-                  <div key={key}>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">
-                      {key}
-                    </label>
-                    <input
-                      type="text"
-                      value={value?.toString() || ''}
-                      onChange={(e) => setEditParams({ ...editParams, [key]: e.target.value })}
-                      className="input"
-                    />
-                  </div>
-                ))}
-                <div className="flex gap-2 pt-2">
-                  <button onClick={handleSave} className="btn-primary">
-                    Save
-                  </button>
-                  <button onClick={() => setIsEditing(false)} className="btn-secondary">
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {Object.entries(job.params || {}).length === 0 ? (
-                  <p className="text-slate-500">No parameters</p>
-                ) : (
-                  Object.entries(job.params).map(([key, value]) => (
-                    <div key={key} className="flex justify-between py-2 border-b border-slate-700/50">
-                      <span className="text-slate-400">{key}</span>
-                      <span className="text-slate-50 font-mono text-sm">{value?.toString()}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column - Options */}
-        <div className="space-y-6">
-          <div className="card">
-            <h3 className="text-lg font-semibold text-slate-50 mb-4">Options</h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Concurrent Execution</span>
-                <span className={job.options.disallowConcurrentExecution ? 'text-red-400' : 'text-green-400'}>
-                  {job.options.disallowConcurrentExecution ? 'Disabled' : 'Allowed'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Misfire Policy</span>
-                <span className="text-slate-50">{job.options.misfirePolicy}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions Card */}
-          <div className="card bg-slate-800/50">
-            <h3 className="text-lg font-semibold text-slate-50 mb-4">Quick Actions</h3>
-            <div className="space-y-2">
-              <button
-                onClick={() => triggerJob.mutate(job.jobKey)}
-                disabled={triggerJob.isPending}
-                className="w-full btn-primary flex items-center justify-center gap-2"
-              >
-                <Play size={16} />
-                {triggerJob.isPending ? 'Triggering...' : 'Trigger Now'}
-              </button>
-              
-              {job.status === 'paused' ? (
-                <button
-                  onClick={() => resumeJob.mutate(job.jobKey)}
-                  disabled={resumeJob.isPending}
-                  className="w-full btn-secondary flex items-center justify-center gap-2"
-                >
-                  <Play size={16} />
-                  {resumeJob.isPending ? 'Resuming...' : 'Resume'}
-                </button>
-              ) : (
-                <button
-                  onClick={() => pauseJob.mutate(job.jobKey)}
-                  disabled={pauseJob.isPending}
-                  className="w-full btn-secondary flex items-center justify-center gap-2"
-                >
-                  <Square size={16} />
-                  {pauseJob.isPending ? 'Pausing...' : 'Pause'}
-                </button>
-              )}
-            </div>
-          </div>
+    return (
+      <div className="p-6">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
+          <p className="text-red-400">{error.message}</p>
+          <Link
+            to={`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs`}
+            className="mt-4 inline-block text-blue-400 hover:text-blue-300"
+          >
+            ← Back to Jobs
+          </Link>
         </div>
       </div>
-     </div>
+    );
+  }
 
-      <ConfirmDialog
-        isOpen={isDeleteConfirmOpen}
-        onClose={() => setIsDeleteConfirmOpen(false)}
-        title="Delete Job"
-        message={`Are you sure you want to delete job "${jobKey}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        onConfirm={handleDelete}
-      />
-    </>
+  if (!job) return null;
+
+  const triggerStateDisplay = (() => {
+    switch (job.status) {
+      case 'normal': return { label: 'Normal', color: 'text-green-400' };
+      case 'paused': return { label: 'Paused', color: 'text-amber-400' };
+      case 'blocked': return { label: 'Blocked', color: 'text-red-400' };
+      case 'complete': return { label: 'Complete', color: 'text-blue-400' };
+      case 'error': return { label: 'Error', color: 'text-red-500' };
+      default: return { label: job.status, color: 'text-slate-400' };
+    }
+  })();
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleString();
+  };
+
+  const scheduleTypeDisplay = (() => {
+    if (!job.schedule) return 'N/A';
+    switch (job.schedule.type) {
+      case 'cron': return `Cron: ${job.schedule.cronExpression}`;
+      case 'interval': return `Every ${job.schedule.intervalSeconds}s`;
+      case 'once': return `Once at ${formatDate(job.schedule.runAt)}`;
+      default: return job.schedule.type;
+    }
+  })();
+
+  return (
+    <div className="p-6">
+      {/* Back Navigation */}
+      <Link
+        to={`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs`}
+        className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 mb-4"
+      >
+        <ArrowLeft size={14} />
+        Back to Jobs
+      </Link>
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-50">{decodedJobKey}</h1>
+          <p className="text-slate-400 text-sm">Scheduler: {decodedSchedulerName}</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => triggerJob.mutate()}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
+          >
+            <Play size={14} /> Trigger
+          </button>
+          <button
+            onClick={() => pauseJob.mutate()}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 text-amber-400 rounded-lg hover:bg-amber-500/30 transition-colors"
+          >
+            <Pause size={14} /> Pause
+          </button>
+          <button
+            onClick={() => resumeJob.mutate()}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
+          >
+            <Play size={14} /> Resume
+          </button>
+          <button
+            onClick={() => setIsDeleteConfirmOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+          >
+            <Trash2 size={14} /> Delete
+          </button>
+        </div>
+      </div>
+
+      {/* Job Info Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div className="text-xs text-slate-500 mb-1">Job Type</div>
+          <div className="text-sm text-slate-50">{job.jobType}</div>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div className="text-xs text-slate-500 mb-1">Group</div>
+          <div className="text-sm text-slate-50">{job.group || 'default'}</div>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div className="text-xs text-slate-500 mb-1">Status</div>
+          <div className={`text-sm font-medium ${triggerStateDisplay.color}`}>{triggerStateDisplay.label}</div>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div className="text-xs text-slate-500 mb-1">Schedule</div>
+          <div className="text-sm text-slate-50">{scheduleTypeDisplay}</div>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div className="text-xs text-slate-500 mb-1">Next Fire Time</div>
+          <div className="text-sm text-slate-50">{formatDate(job.nextFireTime)}</div>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div className="text-xs text-slate-500 mb-1">Previous Fire Time</div>
+          <div className="text-sm text-slate-50">{formatDate(job.previousFireTime)}</div>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div className="text-xs text-slate-500 mb-1">Description</div>
+          <div className="text-sm text-slate-50">{job.description || 'No description'}</div>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div className="text-xs text-slate-500 mb-1">Disallow Concurrent</div>
+          <div className="text-sm text-slate-50">{job.options.disallowConcurrentExecution ? 'Yes' : 'No'}</div>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <div className="text-xs text-slate-500 mb-1">Misfire Policy</div>
+          <div className="text-sm text-slate-50">{job.options.misfirePolicy}</div>
+        </div>
+      </div>
+
+      {/* Job Parameters */}
+      {job.params && Object.keys(job.params).length > 0 && (
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 mb-6">
+          <h3 className="text-lg font-semibold text-slate-50 mb-3">Parameters</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {Object.entries(job.params).map(([key, value]) => (
+              <div key={key} className="text-sm">
+                <span className="text-slate-400">{key}: </span>
+                <span className="text-slate-50">{String(value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {isDeleteConfirmOpen && (
+        <ConfirmDialog
+          title="Delete Job"
+          message={`Are you sure you want to delete "${decodedJobKey}"? This action cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={handleDelete}
+          onCancel={() => setIsDeleteConfirmOpen(false)}
+        />
+      )}
+    </div>
   );
 };
 

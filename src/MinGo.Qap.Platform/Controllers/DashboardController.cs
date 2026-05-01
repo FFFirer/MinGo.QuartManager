@@ -8,17 +8,20 @@ namespace MinGo.Qap.Platform.Controllers;
 [Route("api")]
 public class DashboardController : ControllerBase
 {
-    private readonly IClusterService _clusterService;
-    private readonly IAgentInstanceService _agentInstanceService;
+    private readonly AgentService _agentService;
+    private readonly SchedulerService _schedulerService;
+    private readonly IJobService _jobService;
     private readonly ILogger<DashboardController> _logger;
 
     public DashboardController(
-        IClusterService clusterService,
-        IAgentInstanceService agentInstanceService,
+        AgentService agentService,
+        SchedulerService schedulerService,
+        IJobService jobService,
         ILogger<DashboardController> logger)
     {
-        _clusterService = clusterService;
-        _agentInstanceService = agentInstanceService;
+        _agentService = agentService;
+        _schedulerService = schedulerService;
+        _jobService = jobService;
         _logger = logger;
     }
 
@@ -27,31 +30,22 @@ public class DashboardController : ControllerBase
     {
         try
         {
-            var clusters = await _clusterService.GetAllAsync();
-            
+            var agents = await _agentService.GetAllAsync();
+            var schedulers = await _schedulerService.GetAllSchedulersAsync();
+
             var dashboard = new DashboardDto
             {
-                TotalClusters = clusters.Count,
-                TotalJobs = clusters.Sum(c => c.JobCount),
-                TotalAgents = clusters.Sum(c => c.InstanceCount),
-                OnlineAgents = clusters.Sum(c => c.InstanceCount), // Use total as approximation
-                WarningAgents = 0,
-                OfflineAgents = 0,
-                Clusters = clusters.Select(c => new ClusterSummaryItem
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    Env = c.Env,
-                    Status = c.Status,
-                    JobCount = c.JobCount,
-                    AgentCount = c.InstanceCount,
-                    OnlineAgentCount = c.InstanceCount, // Use total as approximation
-                    LastHeartbeat = c.LastHeartbeat?.ToString("o")
-                }).ToList(),
+                TotalClusters = 0, // Cluster concept removed
+                TotalJobs = 0, // Would need job aggregation
+                TotalAgents = agents.Count,
+                OnlineAgents = agents.Count(a => a.Status == "Online"),
+                WarningAgents = agents.Count(a => a.Status == "Warning"),
+                OfflineAgents = agents.Count(a => a.Status == "Offline"),
+                Clusters = new List<ClusterSummaryItem>(),
                 JobStatus = new JobStatusDistribution
                 {
-                    Active = clusters.Sum(c => c.JobCount) - 4,
-                    Paused = 4,
+                    Active = 0,
+                    Paused = 0,
                     Blocked = 0,
                     Executing = 0
                 },
@@ -70,129 +64,55 @@ public class DashboardController : ControllerBase
     [HttpGet("clusters/{clusterId}/dashboard")]
     public async Task<ActionResult<ApiResponse<ClusterDashboardDto>>> GetClusterDashboard(string clusterId)
     {
-        try
+        // Cluster dashboard is deprecated - return empty response
+        var dashboard = new ClusterDashboardDto
         {
-            var cluster = await _clusterService.GetAsync(clusterId);
-            if (cluster == null)
+            ClusterId = clusterId,
+            ClusterName = clusterId,
+            Status = "Deprecated",
+            Env = "N/A",
+            CreatedAt = DateTime.MinValue,
+            JobSummary = new JobSummary
             {
-                return NotFound(ApiResponse<ClusterDashboardDto>.Fail("Cluster not found"));
-            }
-
-            var agents = await _agentInstanceService.GetInstancesByClusterAsync(clusterId);
-            var instanceSummary = await _agentInstanceService.GetInstanceSummaryAsync(clusterId);
-
-            var dashboard = new ClusterDashboardDto
+                Total = 0,
+                Active = 0,
+                Paused = 0,
+                Blocked = 0,
+                Executing = 0
+            },
+            AgentSummary = new AgentSummary
             {
-                ClusterId = cluster.Id,
-                ClusterName = cluster.Name,
-                Status = cluster.Status,
-                Env = cluster.Env,
-                CreatedAt = cluster.CreatedAt,
-                JobSummary = new JobSummary
-                {
-                    Total = cluster.JobCount,
-                    Active = 8,
-                    Paused = 3,
-                    Blocked = 1,
-                    Executing = 0
-                },
-                AgentSummary = new AgentSummary
-                {
-                    Total = instanceSummary.TotalCount,
-                    Online = instanceSummary.OnlineCount,
-                    Warning = instanceSummary.WarningCount,
-                    Offline = instanceSummary.OfflineCount
-                },
-                RecentAgents = agents.Take(5).ToList(),
-                UpcomingJobs = new List<UpcomingJobDto>
-                {
-                    new UpcomingJobDto
-                    {
-                        JobKey = "daily-sync",
-                        JobType = "SyncJob",
-                        ScheduleDescription = "Every day at 08:00",
-                        NextFireTime = DateTime.Today.AddDays(1).AddHours(8)
-                    },
-                    new UpcomingJobDto
-                    {
-                        JobKey = "hourly-data",
-                        JobType = "DataJob",
-                        ScheduleDescription = "Every hour",
-                        NextFireTime = DateTime.Now.AddHours(1)
-                    }
-                },
-                LastUpdated = DateTime.UtcNow
-            };
+                Total = 0,
+                Online = 0,
+                Warning = 0,
+                Offline = 0
+            },
+            RecentAgents = new List<AgentInstanceDto>(),
+            UpcomingJobs = new List<UpcomingJobDto>(),
+            LastUpdated = DateTime.UtcNow
+        };
 
-            return Ok(ApiResponse<ClusterDashboardDto>.Ok(dashboard));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get cluster dashboard: {ClusterId}", clusterId);
-            return BadRequest(ApiResponse<ClusterDashboardDto>.Fail(ex.Message));
-        }
+        return Ok(ApiResponse<ClusterDashboardDto>.Ok(dashboard));
     }
 
     [HttpGet("clusters/{clusterId}/calendar")]
     public async Task<ActionResult<ApiResponse<CalendarDto>>> GetClusterCalendar(
-        string clusterId, 
-        [FromQuery] int year, 
+        string clusterId,
+        [FromQuery] int year,
         [FromQuery] int month)
     {
-        try
+        // Cluster calendar is deprecated - return empty response
+        year = year == 0 ? DateTime.Now.Year : year;
+        month = month == 0 ? DateTime.Now.Month : month;
+
+        var calendar = new CalendarDto
         {
-            var cluster = await _clusterService.GetAsync(clusterId);
-            if (cluster == null)
-            {
-                return NotFound(ApiResponse<CalendarDto>.Fail("Cluster not found"));
-            }
+            Year = year,
+            Month = month,
+            Jobs = new List<CalendarJobDto>()
+        };
 
-            year = year == 0 ? DateTime.Now.Year : year;
-            month = month == 0 ? DateTime.Now.Month : month;
-
-            var calendar = new CalendarDto
-            {
-                Year = year,
-                Month = month,
-                Jobs = new List<CalendarJobDto>
-                {
-                    new CalendarJobDto
-                    {
-                        JobKey = "daily-sync",
-                        JobType = "SyncJob",
-                        ScheduleType = "Cron",
-                        CronExpression = "0 8 * * *",
-                        ScheduleDescription = "Every day at 08:00",
-                        FireTimes = GenerateFireTimes("0 8 * * *", year, month)
-                    },
-                    new CalendarJobDto
-                    {
-                        JobKey = "daily-report",
-                        JobType = "ReportJob",
-                        ScheduleType = "Cron",
-                        CronExpression = "0 0 * * *",
-                        ScheduleDescription = "Every day at midnight",
-                        FireTimes = GenerateFireTimes("0 0 * * *", year, month)
-                    },
-                    new CalendarJobDto
-                    {
-                        JobKey = "weekly-summary",
-                        JobType = "ReportJob",
-                        ScheduleType = "Cron",
-                        CronExpression = "0 10 * * 1",
-                        ScheduleDescription = "Every Monday at 10:00",
-                        FireTimes = GenerateFireTimes("0 10 * * 1", year, month)
-                    }
-                }
-            };
-
-            return Ok(ApiResponse<CalendarDto>.Ok(calendar));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get cluster calendar: {ClusterId}", clusterId);
-            return BadRequest(ApiResponse<CalendarDto>.Fail(ex.Message));
-        }
+        return Ok(ApiResponse<CalendarDto>.Ok(calendar));
     }
 
     private List<DateTime> GenerateFireTimes(string cronExpression, int year, int month)

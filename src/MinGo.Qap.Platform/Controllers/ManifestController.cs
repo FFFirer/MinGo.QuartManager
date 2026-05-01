@@ -7,7 +7,7 @@ namespace MinGo.Qap.Platform.Controllers;
 /// Job Manifest 控制器
 /// </summary>
 [ApiController]
-[Route("api/clusters/{clusterId}/manifest")]
+[Route("api/schedulers/{schedulerName}/manifest")]
 public class ManifestController : ControllerBase
 {
     private static readonly Dictionary<string, JobManifestDto> _manifestCache = new();
@@ -22,11 +22,11 @@ public class ManifestController : ControllerBase
     /// 上报 Job Manifest
     /// </summary>
     [HttpPost]
-    public IActionResult Post(string clusterId, [FromBody] JobManifestDto manifest)
+    public IActionResult Post(string schedulerName, [FromBody] JobManifestDto manifest)
     {
-        if (string.IsNullOrWhiteSpace(clusterId))
+        if (string.IsNullOrWhiteSpace(schedulerName))
         {
-            return BadRequest("ClusterId is required");
+            return BadRequest("SchedulerName is required");
         }
 
         if (manifest == null || manifest.Jobs == null)
@@ -34,17 +34,11 @@ public class ManifestController : ControllerBase
             return BadRequest("Invalid manifest data");
         }
 
-        // 验证 ClusterId 匹配
-        if (manifest.ClusterId != clusterId)
-        {
-            return BadRequest("ClusterId in manifest does not match URL");
-        }
-
         // 存储到内存缓存
-        _manifestCache[clusterId] = manifest;
+        _manifestCache[schedulerName] = manifest;
 
-        _logger.LogInformation("Manifest received for cluster {ClusterId} with {JobCount} job types",
-            clusterId, manifest.Jobs.Count);
+        _logger.LogInformation("Manifest received for scheduler {SchedulerName} with {JobCount} job types",
+            schedulerName, manifest.Jobs.Count);
 
         return Ok();
     }
@@ -53,14 +47,14 @@ public class ManifestController : ControllerBase
     /// 获取 Job Manifest
     /// </summary>
     [HttpGet]
-    public IActionResult Get(string clusterId)
+    public IActionResult Get(string schedulerName)
     {
-        if (string.IsNullOrWhiteSpace(clusterId))
+        if (string.IsNullOrWhiteSpace(schedulerName))
         {
-            return BadRequest("ClusterId is required");
+            return BadRequest("SchedulerName is required");
         }
 
-        if (_manifestCache.TryGetValue(clusterId, out var manifest))
+        if (_manifestCache.TryGetValue(schedulerName, out var manifest))
         {
             return Ok(manifest);
         }
@@ -68,7 +62,6 @@ public class ManifestController : ControllerBase
         // 返回空的 manifest
         return Ok(new JobManifestDto
         {
-            ClusterId = clusterId,
             Jobs = new List<JobTypeInfoDto>()
         });
     }

@@ -21,14 +21,70 @@ public static class AgentApiExtensions
         this IEndpointRouteBuilder app,
         string prefix = "/api/agent")
     {
+        // ========== Scheduler 管理 ==========
+
+        // GET /api/agent/schedulers - 获取所有 Scheduler 列表
+        app.MapGet($"{prefix}/schedulers", async (
+            [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
+            CancellationToken ct) =>
+        {
+            var schedulerNames = await quartz.GetSchedulerNamesAsync();
+            var result = new List<object>();
+
+            foreach (var name in schedulerNames)
+            {
+                try
+                {
+                    var state = await quartz.GetSchedulerStateAsync(name);
+                    result.Add(new
+                    {
+                        state.Name,
+                        state.InstanceId,
+                        state.Status,
+                        state.RunningSince,
+                        state.IsClustered,
+                        state.JobCounts
+                    });
+                }
+                catch (Exception ex)
+                {
+                    result.Add(new
+                    {
+                        Name = name,
+                        Status = "error",
+                        Error = ex.Message
+                    });
+                }
+            }
+
+            return Results.Ok(ApiResponse<List<object>>.Ok(result));
+        })
+        .WithName("GetSchedulers");
+
+        // GET /api/agent/scheduler - 默认 Scheduler 状态（向后兼容）
+        app.MapGet($"{prefix}/scheduler", async (
+            HttpRequest request,
+            [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
+            CancellationToken ct) =>
+        {
+            var schedulerName = ParseSchedulerName(request, accessor);
+            var state = await quartz.GetSchedulerStateAsync(schedulerName);
+            return Results.Ok(ApiResponse<SchedulerStateDto>.Ok(state));
+        })
+        .WithName("GetDefaultSchedulerState");
+
         // ========== Job 管理 ==========
 
         // GET /api/agent/jobs - 列表
         app.MapGet($"{prefix}/jobs", async (
             HttpRequest request,
             [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
             CancellationToken ct) =>
         {
+            var schedulerName = ParseSchedulerName(request, accessor);
             var query = new JobQuery
             {
                 Page = int.TryParse(request.Query["page"], out var p) ? p : 1,
@@ -37,18 +93,21 @@ public static class AgentApiExtensions
                 Group = request.Query["group"].FirstOrDefault(),
                 Keyword = request.Query["keyword"].FirstOrDefault()
             };
-            var jobs = await quartz.GetJobsAsync(query);
+            var jobs = await quartz.GetJobsAsync(schedulerName, query);
             return Results.Ok(ApiResponse<List<JobSummaryDto>>.Ok(jobs));
         })
         .WithName("GetJobs");
 
         // GET /api/agent/jobs/{jobKey} - 详情
         app.MapGet($"{prefix}/jobs/{{jobKey}}", async (
+            HttpRequest request,
             string jobKey,
             [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
             CancellationToken ct) =>
         {
-            var job = await quartz.GetJobAsync(jobKey);
+            var schedulerName = ParseSchedulerName(request, accessor);
+            var job = await quartz.GetJobAsync(schedulerName, jobKey);
             return job != null
                 ? Results.Ok(ApiResponse<JobDetailDto>.Ok(job))
                 : Results.NotFound(ApiResponse<JobDetailDto>.Fail("Job not found"));
@@ -57,13 +116,16 @@ public static class AgentApiExtensions
 
         // POST /api/agent/jobs - 创建
         app.MapPost($"{prefix}/jobs", async (
-            CreateJobRequest request,
+            HttpRequest request,
+            CreateJobRequest requestBody,
             [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
             CancellationToken ct) =>
         {
             try
             {
-                var job = await quartz.CreateJobAsync(request);
+                var schedulerName = ParseSchedulerName(request, accessor);
+                var job = await quartz.CreateJobAsync(schedulerName, requestBody);
                 return Results.Ok(ApiResponse<JobDetailDto>.Ok(job));
             }
             catch (ArgumentException ex)
@@ -75,14 +137,17 @@ public static class AgentApiExtensions
 
         // PUT /api/agent/jobs/{jobKey} - 更新
         app.MapPut($"{prefix}/jobs/{{jobKey}}", async (
+            HttpRequest request,
             string jobKey,
-            UpdateJobRequest request,
+            UpdateJobRequest requestBody,
             [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
             CancellationToken ct) =>
         {
             try
             {
-                await quartz.UpdateJobAsync(jobKey, request);
+                var schedulerName = ParseSchedulerName(request, accessor);
+                await quartz.UpdateJobAsync(schedulerName, jobKey, requestBody);
                 return Results.Ok(ApiResponse<object>.Ok(new { }));
             }
             catch (ArgumentException ex)
@@ -94,13 +159,16 @@ public static class AgentApiExtensions
 
         // DELETE /api/agent/jobs/{jobKey} - 删除
         app.MapDelete($"{prefix}/jobs/{{jobKey}}", async (
+            HttpRequest request,
             string jobKey,
             [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
             CancellationToken ct) =>
         {
             try
             {
-                await quartz.DeleteJobAsync(jobKey);
+                var schedulerName = ParseSchedulerName(request, accessor);
+                await quartz.DeleteJobAsync(schedulerName, jobKey);
                 return Results.Ok(ApiResponse<object>.Ok(new { }));
             }
             catch (ArgumentException ex)
@@ -114,13 +182,16 @@ public static class AgentApiExtensions
 
         // POST /api/agent/jobs/{jobKey}/trigger
         app.MapPost($"{prefix}/jobs/{{jobKey}}/trigger", async (
+            HttpRequest request,
             string jobKey,
             [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
             CancellationToken ct) =>
         {
             try
             {
-                await quartz.TriggerJobAsync(jobKey);
+                var schedulerName = ParseSchedulerName(request, accessor);
+                await quartz.TriggerJobAsync(schedulerName, jobKey);
                 return Results.Ok(ApiResponse<object>.Ok(new { }));
             }
             catch (ArgumentException ex)
@@ -132,13 +203,16 @@ public static class AgentApiExtensions
 
         // POST /api/agent/jobs/{jobKey}/pause
         app.MapPost($"{prefix}/jobs/{{jobKey}}/pause", async (
+            HttpRequest request,
             string jobKey,
             [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
             CancellationToken ct) =>
         {
             try
             {
-                await quartz.PauseJobAsync(jobKey);
+                var schedulerName = ParseSchedulerName(request, accessor);
+                await quartz.PauseJobAsync(schedulerName, jobKey);
                 return Results.Ok(ApiResponse<object>.Ok(new { }));
             }
             catch (ArgumentException ex)
@@ -150,13 +224,16 @@ public static class AgentApiExtensions
 
         // POST /api/agent/jobs/{jobKey}/resume
         app.MapPost($"{prefix}/jobs/{{jobKey}}/resume", async (
+            HttpRequest request,
             string jobKey,
             [FromServices] IQuartzService quartz,
+            [FromServices] IAgentSchedulerAccessor accessor,
             CancellationToken ct) =>
         {
             try
             {
-                await quartz.ResumeJobAsync(jobKey);
+                var schedulerName = ParseSchedulerName(request, accessor);
+                await quartz.ResumeJobAsync(schedulerName, jobKey);
                 return Results.Ok(ApiResponse<object>.Ok(new { }));
             }
             catch (ArgumentException ex)
@@ -165,18 +242,6 @@ public static class AgentApiExtensions
             }
         })
         .WithName("ResumeJob");
-
-        // ========== Scheduler 状态 ==========
-
-        // GET /api/agent/scheduler
-        app.MapGet($"{prefix}/scheduler", async (
-            [FromServices] IQuartzService quartz,
-            CancellationToken ct) =>
-        {
-            var state = await quartz.GetSchedulerStateAsync();
-            return Results.Ok(ApiResponse<SchedulerStateDto>.Ok(state));
-        })
-        .WithName("GetSchedulerState");
 
         // ========== Job Manifest ==========
 
@@ -188,5 +253,35 @@ public static class AgentApiExtensions
             return Results.Ok(ApiResponse<JobManifestDto>.Ok(manifest));
         })
         .WithName("GetManifest");
+    }
+
+    /// <summary>
+    /// 解析 Scheduler 名称
+    /// 优先级：X-Scheduler-Name Header > ?schedulerName= Query > 默认第一个
+    /// </summary>
+    private static string ParseSchedulerName(HttpRequest request, IAgentSchedulerAccessor accessor)
+    {
+        // 1. 尝试从 Header 获取
+        var headerValue = request.Headers["X-Scheduler-Name"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(headerValue))
+        {
+            return headerValue;
+        }
+
+        // 2. 尝试从 Query 获取
+        var queryValue = request.Query["schedulerName"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(queryValue))
+        {
+            return queryValue;
+        }
+
+        // 3. 使用默认第一个 Scheduler
+        var firstScheduler = accessor.GetAll().Keys.FirstOrDefault();
+        if (!string.IsNullOrEmpty(firstScheduler))
+        {
+            return firstScheduler;
+        }
+
+        throw new InvalidOperationException("No scheduler available");
     }
 }
