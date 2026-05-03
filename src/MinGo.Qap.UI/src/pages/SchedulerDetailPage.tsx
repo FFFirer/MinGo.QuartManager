@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { schedulerApi } from '../api';
 import StatusBadge from '../components/StatusBadge';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 import type { SchedulerDetailDto, SchedulerAgentDto, JobCountsDto, ApiResponse } from '../types';
 
 const SchedulerDetailPage: React.FC = () => {
@@ -52,24 +53,25 @@ const SchedulerDetailPage: React.FC = () => {
 
   return (
     <div className="p-6">
-      {/* Back */}
-      <Link to="/schedulers" className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 mb-4">
-        <ArrowLeft size={14} /> Back to Schedulers
-      </Link>
-
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-50">{decodedName}</h1>
-          <StatusBadge status={scheduler.status} />
-        </div>
-        <Link
-          to={`/schedulers/${encodeURIComponent(decodedName)}/jobs`}
-          className="flex items-center gap-1.5 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-        >
-          <ExternalLink size={14} /> View Jobs
-        </Link>
-      </div>
+      {/* Header with PageHeader */}
+      <PageHeader
+        title={decodedName}
+        subtitle="Scheduler details"
+        backPath="/schedulers"
+        status={<StatusBadge status={scheduler.status} />}
+        breadcrumbs={[
+          { label: 'Schedulers', path: '/schedulers' },
+          { label: decodedName, active: true }
+        ]}
+        actions={
+          <Link
+            to={`/schedulers/${encodeURIComponent(decodedName)}/jobs`}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          >
+            <ExternalLink size={14} /> View Jobs
+          </Link>
+        }
+      />
 
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

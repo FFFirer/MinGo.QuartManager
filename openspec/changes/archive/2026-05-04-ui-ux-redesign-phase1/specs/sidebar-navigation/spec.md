@@ -1,29 +1,15 @@
-# Sidebar Navigation Specification
+# Sidebar Navigation Specification (Delta)
 
 ## Purpose
 
-This specification defines the requirements for the sidebar navigation with Agent and Scheduler navigation, including collapsible states and responsive behavior.
+This delta spec updates the sidebar navigation to support collapsible states, responsive behavior, and integration with the global search and status bar.
 
-**Status:** Updated  
+**Status:** Delta  
 **Last Updated:** 2026-05-04
 
 ---
 
-## Requirements
-
-### Requirement: Sidebar displays Dashboard, Agents, Schedulers navigation
-
-The sidebar SHALL display navigation items (Dashboard, Agents, Schedulers, Calendar, Executions, Settings) as primary navigation.
-
-#### Scenario: Base navigation displays
-- **WHEN** sidebar is rendered
-- **THEN** the sidebar SHALL show:
-  - Dashboard (icon: LayoutDashboard, route: /)
-  - Agents (icon: Server) with dropdown of recent agents
-  - Schedulers (icon: Layers, route: /schedulers)
-  - Calendar (icon: Calendar, route context-aware)
-  - Executions (icon: Activity, route: placeholder)
-  - Settings (icon: Settings, route: /settings)
+## ADDED Requirements
 
 ### Requirement: Sidebar supports collapsed and expanded states
 
@@ -60,36 +46,6 @@ The sidebar SHALL automatically collapse when viewport width is below the lg bre
 - **THEN** sidebar SHALL appear as an overlay panel with semi-transparent backdrop
 - **AND** clicking backdrop SHALL close the sidebar
 
-### Requirement: Sidebar agents dropdown shows recent agents
-
-The sidebar SHALL show a dropdown of recently accessed agents (up to 5) when Agents is clicked.
-
-#### Scenario: Recent agents displayed
-- **WHEN** user clicks Agents
-- **THEN** a dropdown SHALL appear showing:
-  - Up to 5 most recently accessed agents
-  - Each agent shows: name, status indicator (dot: green/amber/red)
-  - "View All Agents" option linking to /agents
-
-### Requirement: Sidebar dropdown closes on outside click
-
-The sidebar dropdown SHALL close when clicking outside of it.
-
-#### Scenario: Dropdown closes on outside click
-- **WHEN** dropdown is open
-- **AND** user clicks outside the dropdown
-- **THEN** the dropdown SHALL close
-
-### Requirement: Sidebar dropdown closes on navigation
-
-The sidebar dropdown SHALL close when user navigates to an agent.
-
-#### Scenario: Dropdown closes on navigation
-- **WHEN** dropdown is open
-- **AND** user clicks an agent
-- **THEN** the dropdown SHALL close
-- **AND** navigation to the agent SHALL occur
-
 ### Requirement: Sidebar integrates with status bar
 
 The sidebar SHALL integrate with the bottom status bar.
@@ -100,17 +56,29 @@ The sidebar SHALL integrate with the bottom status bar.
 - **AND** **WHEN** sidebar is expanded
 - **THEN** the status bar SHALL be offset by the sidebar width
 
-### Requirement: Sidebar highlights active menu item
+## MODIFIED Requirements
 
-The sidebar SHALL highlight the currently active page in the navigation.
+### Requirement: Sidebar displays Dashboard, Agents, Schedulers navigation
 
-#### Scenario: Active item highlighted
-- **WHEN** user is on a page matching a sidebar route
-- **THEN** the corresponding sidebar item SHALL be visually highlighted
+The sidebar SHALL display navigation items (Dashboard, Agents, Schedulers, Executions, Settings) as primary navigation.
+
+**Change**: Added "Executions" (icon: Activity, route: /executions) and "Calendar" (icon: Calendar, route: /schedulers/:name/calendar) to navigation items
+
+#### Scenario: Base navigation displays
+- **WHEN** sidebar is rendered
+- **THEN** the sidebar SHALL show:
+  - Dashboard (icon: LayoutDashboard, route: /)
+  - Agents (icon: Server) with dropdown of recent agents
+  - Schedulers (icon: Layers, route: /schedulers)
+  - Calendar (icon: Calendar, route context-aware)
+  - Executions (icon: Activity, route: placeholder)
+  - Settings (icon: Settings, route: /settings)
 
 ### Requirement: Sidebar supports keyboard navigation
 
 The sidebar SHALL support keyboard shortcuts for quick navigation.
+
+**Change**: Added Alt+E for Executions, Alt+C for Calendar shortcuts
 
 #### Scenario: Keyboard shortcuts
 - **WHEN** user presses Alt+D

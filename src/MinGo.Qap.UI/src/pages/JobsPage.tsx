@@ -4,10 +4,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Pause, Trash2, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { jobApi } from '../api';
-import CreateJobModal from '../components/CreateJobModal';
+import CreateJobPanel from '../components/CreateJobPanel';
 import StatusBadge from '../components/StatusBadge';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
+import PageHeader from '../components/PageHeader';
 import type { JobSummaryDto } from '../types';
 
 const JobsPage: React.FC = () => {
@@ -17,11 +18,15 @@ const JobsPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<string | null>(null);
-  const pageSize = 20;
+  // Batch selection state
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
+  // Page size is now a stateful value (default 20)
+  const [pageSize, setPageSize] = useState<number>(20);
   const decodedSchedulerName = schedulerName ? decodeURIComponent(schedulerName) : '';
 
   const { data: jobs, isLoading, error } = useQuery({
-    queryKey: ['jobs', decodedSchedulerName, page],
+    queryKey: ['jobs', decodedSchedulerName, page, pageSize],
     queryFn: async () => {
       const response = await jobApi.getAll(decodedSchedulerName, page, pageSize);
       if (!response.success) throw new Error(response.errorMessage);
@@ -66,6 +71,55 @@ const JobsPage: React.FC = () => {
     onError: (err: Error) => toast.error('Failed to delete job: ' + err.message),
   });
 
+  // Batch operations across selected jobs
+  const batchMutation = useMutation(
+    async (action: 'trigger' | 'pause' | 'resume' | 'delete') => {
+      const keys = Array.from(selectedKeys);
+      if (keys.length === 0) return { total: 0, successes: 0, failures: 0 };
+      const promises = keys.map((key) => {
+        switch (action) {
+          case 'trigger': return jobApi.trigger(decodedSchedulerName, key);
+          case 'pause': return jobApi.pause(decodedSchedulerName, key);
+          case 'resume': return jobApi.resume(decodedSchedulerName, key);
+          case 'delete': return jobApi.delete(decodedSchedulerName, key);
+        }
+      });
+      const results = await Promise.allSettled(promises);
+      const successes = results.filter(r => r.status === 'fulfilled').length;
+      const failures = results.filter(r => r.status === 'rejected').length;
+      return { total: keys.length, successes, failures };
+    },
+    {
+      onSuccess: (payload: any) => {
+        const { total, successes, failures } = payload || { total: 0, successes: 0, failures: 0 };
+        if (total === 0) {
+          return;
+        }
+        if (failures === 0) {
+          toast.success(`Triggered ${successes} of ${total} jobs successfully`);
+        } else if (successes > 0) {
+          toast.warn(`Partial success: ${successes} of ${total} succeeded, ${failures} failed`);
+        } else {
+          toast.error(`Failed to perform operation on all ${total} jobs`);
+        }
+        queryClient.invalidateQueries({ queryKey: ['jobs', decodedSchedulerName] });
+        setSelectedKeys(new Set());
+        // Close potential delete confirmation dialog if open
+        setBatchDeleteDialogOpen(false);
+      },
+      onError: (err: any) => {
+        toast.error('Batch operation failed: ' + (err?.message ?? 'Unknown error'));
+      },
+    }
+  );
+
+  // Pagination helpers derived from current data set
+  const totalItems = Array.isArray(jobs) ? jobs.length : 0;
+  const startIndex = totalItems > 0 ? (page - 1) * pageSize + 1 : 0;
+  const endIndex = totalItems > 0 ? Math.min(page * pageSize, totalItems) : 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const pageNumbers = Array.from({ length: totalPages }, (_, idx) => idx + 1);
+
   if (isLoading) {
     return <div className="p-8 text-slate-400">Loading...</div>;
   }
@@ -78,7 +132,45 @@ const JobsPage: React.FC = () => {
     navigate(`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs/${encodeURIComponent(jobKey)}`);
   };
 
-  const columns = [
+  // Columns definition. Insert a checkbox column as the FIRST column for batch selection.
+  // We cast to `any` to allow a React element in the header and cells without touching DataTable.tsx.
+  const columns: any[] = [
+    {
+      header: (
+        <input
+          type="checkbox"
+          checked={!!jobs && jobs.length > 0 && selectedKeys.size === jobs.length}
+          onChange={(e) => {
+            e.stopPropagation();
+            if (e.target.checked) {
+              const keys = (jobs || []).map((j) => j.jobKey);
+              setSelectedKeys(new Set<string>(keys));
+            } else {
+              setSelectedKeys(new Set<string>());
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) as unknown as string,
+      accessor: (row: JobSummaryDto) => (
+        <input
+          type="checkbox"
+          className="h-4 w-4"
+          checked={selectedKeys.has(row.jobKey)}
+          onChange={(e) => {
+            e.stopPropagation();
+            setSelectedKeys((prev) => {
+              const next = new Set<string>(prev);
+              if (next.has(row.jobKey)) next.delete(row.jobKey);
+              else next.add(row.jobKey);
+              return next;
+            });
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+      width: 'w-14',
+    },
     {
       header: 'Job Key',
       accessor: (row: JobSummaryDto) => row.jobKey,
@@ -117,28 +209,28 @@ const JobsPage: React.FC = () => {
       accessor: (row: JobSummaryDto) => (
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => triggerJob.mutate(row.jobKey)}
+            onClick={(e) => { e.stopPropagation(); triggerJob.mutate(row.jobKey); }}
             className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-slate-700 rounded"
             title="Trigger"
           >
             <Play size={14} />
           </button>
           <button
-            onClick={() => pauseJob.mutate(row.jobKey)}
+            onClick={(e) => { e.stopPropagation(); pauseJob.mutate(row.jobKey); }}
             className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-slate-700 rounded"
             title="Pause"
           >
             <Pause size={14} />
           </button>
           <button
-            onClick={() => resumeJob.mutate(row.jobKey)}
+            onClick={(e) => { e.stopPropagation(); resumeJob.mutate(row.jobKey); }}
             className="p-1.5 text-green-400 hover:text-green-300 hover:bg-slate-700 rounded"
             title="Resume"
           >
             <Play size={14} />
           </button>
           <button
-            onClick={() => setDeleteConfirmJobId(row.jobKey)}
+            onClick={(e) => { e.stopPropagation(); setDeleteConfirmJobId(row.jobKey); }}
             className="p-1.5 text-red-400 hover:text-red-300 hover:bg-slate-700 rounded"
             title="Delete"
           >
@@ -152,24 +244,51 @@ const JobsPage: React.FC = () => {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link to={`/schedulers/${encodeURIComponent(decodedSchedulerName)}`} className="text-sm text-blue-400 hover:text-blue-300">
-              ← Back to Scheduler
-            </Link>
+      <PageHeader
+        title="Jobs"
+        subtitle={`Scheduler: ${decodedSchedulerName}`}
+        breadcrumbs={[
+          { label: 'Schedulers', path: '/schedulers' },
+          { label: decodedSchedulerName, path: `/schedulers/${encodeURIComponent(decodedSchedulerName)}` },
+          { label: 'Jobs', active: true }
+        ]}
+        actions={
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            <Plus size={16} />
+            Create Job
+          </button>
+        }
+      />
+
+      {/* Batch actions bar - appears when items are selected */}
+      {selectedKeys.size > 0 && (
+        <div className="bg-slate-800 rounded-lg p-3 mb-3 flex items-center justify-between">
+          <span className="text-sm text-slate-200">{selectedKeys.size} selected</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => batchMutation.mutate('trigger')} className="px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600">Trigger</button>
+            <button onClick={() => batchMutation.mutate('pause')} className="px-3 py-1.5 bg-slate-700 text-slate-200 rounded hover:bg-slate-600">Pause</button>
+            <button onClick={() => batchMutation.mutate('resume')} className="px-3 py-1.5 bg-slate-700 text-slate-200 rounded hover:bg-slate-600">Resume</button>
+            <button onClick={() => setBatchDeleteDialogOpen(true)} className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-500">Delete</button>
           </div>
-          <h1 className="text-2xl font-bold text-slate-50">Jobs</h1>
-          <p className="text-slate-400 text-sm">Scheduler: {decodedSchedulerName}</p>
         </div>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-        >
-          <Plus size={16} />
-          Create Job
-        </button>
-      </div>
+      )}
+
+      {/* Batch Delete Confirmation for selected items */}
+      {batchDeleteDialogOpen && (
+        <ConfirmDialog
+          title="Delete Selected Jobs"
+          message={`Are you sure you want to delete ${selectedKeys.size} selected job(s)? This action cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => {
+            batchMutation.mutate('delete');
+            setBatchDeleteDialogOpen(false);
+          }}
+          onCancel={() => setBatchDeleteDialogOpen(false)}
+        />
+      )}
 
       {/* Jobs Table */}
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
@@ -182,26 +301,61 @@ const JobsPage: React.FC = () => {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between mt-4">
-        <button
-          onClick={() => setPage(p => Math.max(1, p - 1))}
-          disabled={page === 1}
-          className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Previous
-        </button>
-        <span className="text-slate-400 text-sm">Page {page}</span>
-        <button
-          onClick={() => setPage(p => p + 1)}
-          className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700"
-        >
-          Next
-        </button>
+      <div className="flex items-center justify-between mt-4 gap-4">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          {pageNumbers.map((p) => (
+            <button
+              key={p}
+              onClick={() => setPage(p)}
+              className={
+                p === page
+                  ? 'px-3 py-1.5 rounded bg-slate-700 text-white'
+                  : 'px-3 py-1.5 rounded text-slate-300 hover:bg-slate-700'
+              }
+            >
+              {p}
+            </button>
+          ))}
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+        <div className="text-sm text-slate-400">
+          Showing {startIndex}-{endIndex} of {totalItems} items
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-400">Page size</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              const newSize = parseInt(e.target.value, 10);
+              setPageSize(newSize);
+              setPage(1);
+            }}
+            className="bg-slate-800 text-slate-300 rounded px-2 py-1"
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
       </div>
 
-      {/* Create Job Modal */}
+      {/* Create Job Panel */}
       {isCreateModalOpen && (
-        <CreateJobModal
+        <CreateJobPanel
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           schedulerName={decodedSchedulerName}

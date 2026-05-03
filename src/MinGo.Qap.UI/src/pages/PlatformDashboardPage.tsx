@@ -1,64 +1,73 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Layers, Server, Clock, AlertCircle, CheckCircle, XCircle, Activity, RefreshCw, Calendar } from 'lucide-react';
+import { useMemo } from 'react';
+import { Layers, Clock, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import ActivityFeed from '../components/ActivityFeed';
+import { useEventStream } from '../components/useEventStream';
 import StatsCard from '../components/StatsCard';
 import UpcomingJobsList from '../components/UpcomingJobsList';
 import { StatsCardSkeleton, CardSkeleton } from '../components/LoadingSkeleton';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
+import { agentApi, schedulerApi } from '../api';
+import type { SchedulerSummaryDto, AgentSummaryDto } from '../types';
+import HealthMatrix from '../components/HealthMatrix';
+import ExecutionTrendChart from '../components/ExecutionTrendChart';
+import PageHeader from '../components/PageHeader';
 
-interface DashboardData {
-  totalClusters: number;
-  totalJobs: number;
-  totalAgents: number;
-  onlineAgents: number;
-  warningAgents: number;
-  offlineAgents: number;
-  lastUpdated?: string;
-  clusters: Array<{
-    id: string;
-    name: string;
-    env: string;
-    status: string;
-    jobCount: number;
-    agentCount: number;
-    onlineAgentCount: number;
-    lastHeartbeat?: string;
-  }>;
-  upcomingJobs: Array<{
-    jobKey: string;
-    jobType: string;
-    clusterId: string;
-    clusterName: string;
-    scheduleDescription: string;
-    nextFireTime: string;
-  }>;
-  jobStatus: {
-    active: number;
-    paused: number;
-    blocked: number;
-    executing: number;
-  };
-}
-
-async function fetchDashboard(): Promise<DashboardData> {
-  const response = await fetch('/api/dashboard');
-  if (!response.ok) {
-    throw new Error('Failed to fetch dashboard');
-  }
-  const result = await response.json();
-  return result.data;
-}
+// v2 API data now comes from schedulerApi.getAll() and agentApi.getAll()
 
 export function PlatformDashboardPage() {
-  const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ['platform-dashboard'],
-    queryFn: fetchDashboard,
-    refetchInterval: 30000,
+  // Real-time activity stream hook
+  const { events, isLive } = useEventStream();
+  // Fetch v2 API data in parallel via useQueries
+  const results = useQueries({
+    queries: [
+      {
+        queryKey: ['platform-dashboard-schedulers'],
+        queryFn: () => schedulerApi.getAll(),
+        refetchInterval: 30000,
+      },
+      {
+        queryKey: ['platform-dashboard-agents'],
+        queryFn: () => agentApi.getAll(),
+        refetchInterval: 30000,
+      },
+    ],
   });
 
+  const schedulers = useMemo(() => (results[0]?.data?.data ?? []) as SchedulerSummaryDto[], [results[0]?.data?.data]);
+  const agents = useMemo(() => (results[1]?.data?.data ?? []) as AgentSummaryDto[], [results[1]?.data?.data]);
+
+  const isLoading = results.some(r => r.isLoading);
+  const error = results.find(r => r.isError)?.error as Error | undefined;
+
+  // Derived stats from v2 API data (memoized for performance)
+  const lastUpdated = useMemo(() => {
+    const times = schedulers.map(s => s?.lastReportedAt).filter(t => !!t);
+    if (times.length === 0) return undefined;
+    const latest = times.map(t => new Date(t)).sort((a, b) => +b - +a)[0];
+    return latest?.toLocaleString();
+  }, [schedulers]);
+
+  const totalSchedulers = schedulers.length;
+  const totalJobs = schedulers.reduce((acc, s) => acc + (((s as any).jobCounts?.totalJobs ?? 0) as number), 0);
+
+  const onlineAgents = agents.filter(a => (a as any).status === 'Online').length;
+  const warningAgents = agents.filter(a => (a as any).status === 'Warning').length;
+  const offlineAgents = agents.filter(a => (a as any).status === 'Offline').length;
+  const totalAgents = agents.length;
+
+  const totalActive = schedulers.reduce((acc, s) => acc + (((s as any).jobCounts as any)?.active ?? 0), 0);
+  const totalPaused = schedulers.reduce((acc, s) => acc + (((s as any).jobCounts as any)?.paused ?? 0), 0);
+  const totalBlocked = schedulers.reduce((acc, s) => acc + (((s as any).jobCounts as any)?.blocked ?? 0), 0);
+  const totalExecuting = schedulers.reduce((acc, s) => acc + (((s as any).jobCounts as any)?.executing ?? 0), 0);
+
+  const upcomingJobs = schedulers.flatMap((s: any) => s?.upcomingJobs ?? []);
+
+  // Retry handler kept for parity with previous UI but actual retry uses refetch interval; provide manual reload
   const handleRetry = () => {
-    refetch();
+    window.location.reload();
     toast.success('Refreshing dashboard...');
   };
 
@@ -83,22 +92,18 @@ export function PlatformDashboardPage() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-50">Platform Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Last updated: {data?.lastUpdated ? new Date(data.lastUpdated).toLocaleString() : '...'}
-          </p>
-        </div>
+      <PageHeader
+        title="Platform Dashboard"
+        subtitle={lastUpdated ? `Last updated: ${new Date(lastUpdated).toLocaleString()}` : 'Overview of all schedulers and agents'}
+      >
         <button
-          onClick={() => refetch()}
-          disabled={isRefetching}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50"
+          onClick={() => window.location.reload()}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
         >
-          <RefreshCw size={16} className={isRefetching ? 'animate-spin' : ''} />
+          <RefreshCw size={16} />
           Refresh
         </button>
-      </div>
+      </PageHeader>
 
       {/* Overview Stats */}
       <div className="mb-6">
@@ -115,29 +120,29 @@ export function PlatformDashboardPage() {
             <>
               <StatsCard
                 title="Total Schedulers"
-                value={data?.totalClusters ?? 0}
+                value={totalSchedulers}
                 icon={<Layers size={20} />}
                 variant="default"
               />
               <StatsCard
                 title="Total Jobs"
-                value={data?.totalJobs ?? 0}
+                value={totalJobs}
                 icon={<Clock size={20} />}
                 variant="default"
               />
               <StatsCard
                 title="Online Agents"
-                value={data?.onlineAgents ?? 0}
-                subtitle={`of ${data?.totalAgents ?? 0} total`}
+                value={onlineAgents}
+                subtitle={`of ${totalAgents} total`}
                 icon={<CheckCircle size={20} />}
                 variant="success"
               />
               <StatsCard
                 title="Warning Agents"
-                value={data?.warningAgents ?? 0}
-                subtitle={data?.offlineAgents ? `${data.offlineAgents} offline` : undefined}
+                value={warningAgents}
+                subtitle={offlineAgents ? `${offlineAgents} offline` : undefined}
                 icon={<AlertCircle size={20} />}
-                variant={data?.warningAgents ? 'warning' : 'default'}
+                variant={warningAgents ? 'warning' : 'default'}
               />
             </>
           )}
@@ -146,42 +151,10 @@ export function PlatformDashboardPage() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Job Status Distribution */}
+        {/* Execution Trend (replacing Job Status) */}
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-          <h3 className="text-lg font-semibold text-slate-50 mb-4">Job Status</h3>
-          {isLoading ? (
-            <div className="space-y-3">
-              <CardSkeleton />
-              <CardSkeleton />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {[
-                { label: 'Active', value: data?.jobStatus.active ?? 0, color: 'bg-green-500' },
-                { label: 'Paused', value: data?.jobStatus.paused ?? 0, color: 'bg-amber-500' },
-                { label: 'Blocked', value: data?.jobStatus.blocked ?? 0, color: 'bg-red-500' },
-                { label: 'Executing', value: data?.jobStatus.executing ?? 0, color: 'bg-blue-500' },
-              ].map(item => {
-                const total = (data?.jobStatus.active ?? 0) + (data?.jobStatus.paused ?? 0) + 
-                              (data?.jobStatus.blocked ?? 0) + (data?.jobStatus.executing ?? 0);
-                const percentage = total > 0 ? (item.value / total) * 100 : 0;
-                return (
-                  <div key={item.label}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-slate-400">{item.label}</span>
-                      <span className="text-slate-50">{item.value}</span>
-                    </div>
-                    <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full ${item.color} transition-all duration-500`}
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <h3 className="text-lg font-semibold text-slate-50 mb-4">Execution Trend</h3>
+          <ExecutionTrendChart schedulers={schedulers} />
         </div>
 
         {/* Agent Health */}
@@ -195,11 +168,11 @@ export function PlatformDashboardPage() {
           ) : (
             <div className="space-y-3">
               {[
-                { label: 'Online', value: data?.onlineAgents ?? 0, color: 'bg-green-500' },
-                { label: 'Warning', value: data?.warningAgents ?? 0, color: 'bg-amber-500' },
-                { label: 'Offline', value: data?.offlineAgents ?? 0, color: 'bg-red-500' },
+                { label: 'Online', value: onlineAgents, color: 'bg-green-500' },
+                { label: 'Warning', value: warningAgents, color: 'bg-amber-500' },
+                { label: 'Offline', value: offlineAgents, color: 'bg-red-500' },
               ].map(item => {
-                const total = (data?.totalAgents ?? 0);
+                const total = totalAgents;
                 const percentage = total > 0 ? (item.value / total) * 100 : 0;
                 return (
                   <div key={item.label}>
@@ -221,50 +194,15 @@ export function PlatformDashboardPage() {
         </div>
       </div>
 
-      {/* Schedulers and Upcoming Jobs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Schedulers Overview */}
-        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-slate-50">Schedulers Overview</h3>
-            <Link to="/schedulers" className="text-sm text-blue-400 hover:text-blue-300">
-              View All →
-            </Link>
-          </div>
-          {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <CardSkeleton />
-              <CardSkeleton />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {data?.clusters.slice(0, 4).map(cluster => (
-                <Link
-                  key={cluster.id}
-                  to={`/schedulers/${encodeURIComponent(cluster.name)}`}
-                  className="p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <StatusBadge status={cluster.status} size="sm" showLabel={false} />
-                    <span className="font-medium text-slate-50">{cluster.name}</span>
-                  </div>
-                  <div className="text-xs text-slate-400 space-y-1">
-                    <p>{cluster.jobCount} jobs</p>
-                    <p>{cluster.agentCount} agents ({cluster.onlineAgentCount} healthy)</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Upcoming Jobs */}
+      {/* Schedulers section replaced by HealthMatrix */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <HealthMatrix schedulers={schedulers} />
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-slate-50">Upcoming Jobs (24h)</h3>
           </div>
           <UpcomingJobsList
-            jobs={data?.upcomingJobs ?? []}
+            jobs={upcomingJobs ?? []}
             showScheduler
             loading={isLoading}
           />

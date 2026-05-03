@@ -1,19 +1,16 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Play, Pause, Square, Trash2, ArrowLeft, Clock, Calendar } from 'lucide-react';
-import type { UpdateJobRequest, JobDetailDto } from '../types';
+import { Play, Pause, Trash2 } from 'lucide-react';
 import { jobApi } from '../api';
-import StatusBadge from '../components/StatusBadge';
 import ConfirmDialog from '../components/ConfirmDialog';
+import PageHeader from '../components/PageHeader';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 
 const JobDetailPage: React.FC = () => {
   const { schedulerName, jobKey } = useParams<{ schedulerName: string; jobKey: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [isEditing, setIsEditing] = useState(false);
-  const [editParams, setEditParams] = useState<Record<string, any>>({});
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const decodedSchedulerName = schedulerName ? decodeURIComponent(schedulerName) : '';
@@ -116,22 +113,19 @@ const JobDetailPage: React.FC = () => {
 
   return (
     <div className="p-6">
-      {/* Back Navigation */}
-      <Link
-        to={`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs`}
-        className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 mb-4"
-      >
-        <ArrowLeft size={14} />
-        Back to Jobs
-      </Link>
-
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-50">{decodedJobKey}</h1>
-          <p className="text-slate-400 text-sm">Scheduler: {decodedSchedulerName}</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title={decodedJobKey}
+        subtitle={`Scheduler: ${decodedSchedulerName}`}
+        backPath={`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs`}
+        breadcrumbs={[
+          { label: 'Schedulers', path: '/schedulers' },
+          { label: decodedSchedulerName, path: `/schedulers/${encodeURIComponent(decodedSchedulerName)}` },
+          { label: 'Jobs', path: `/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs` },
+          { label: decodedJobKey, active: true }
+        ]}
+      />
+      <div className="flex gap-2 mb-6">
           <button
             onClick={() => triggerJob.mutate()}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
@@ -157,7 +151,6 @@ const JobDetailPage: React.FC = () => {
             <Trash2 size={14} /> Delete
           </button>
         </div>
-      </div>
 
       {/* Job Info Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

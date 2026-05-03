@@ -2,11 +2,11 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth } from 'date-fns';
-import { ChevronLeft, ChevronRight, List, Clock, Play, Eye, Copy, Calendar as CalendarIcon } from 'lucide-react';
+import { format, addMonths, subMonths, isSameDay, isSameMonth } from 'date-fns';
+import { ChevronLeft, ChevronRight, Clock, Play, Eye, Copy, Calendar as CalendarIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import 'react-calendar/dist/Calendar.css';
-import StatusBadge from '../components/StatusBadge';
+import PageHeader from '../components/PageHeader';
 
 interface CalendarJob {
   jobKey: string;
@@ -142,10 +142,14 @@ export function CalendarPage() {
   return (
     <div className="p-6" onClick={handleCloseMenu}>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-2xl font-bold text-slate-50">{schedulerName || 'Scheduler'}</h1>
-        <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Calendar</span>
-      </div>
+      <PageHeader
+        title={schedulerName || 'Scheduler'}
+        subtitle="Calendar"
+        breadcrumbs={[
+          { label: 'Schedulers', path: '/schedulers' },
+          { label: schedulerName || '', active: true }
+        ]}
+      />
 
       {/* Calendar Controls */}
       <div className="flex items-center justify-between mb-4">
