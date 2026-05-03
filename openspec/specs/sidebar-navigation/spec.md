@@ -19,7 +19,7 @@ The sidebar SHALL display navigation items (Dashboard, Agents, Schedulers, Calen
 - **WHEN** sidebar is rendered
 - **THEN** the sidebar SHALL show:
   - Dashboard (icon: LayoutDashboard, route: /)
-  - Agents (icon: Server) with dropdown of recent agents
+  - Agents (icon: Server, route: /agents)
   - Schedulers (icon: Layers, route: /schedulers)
   - Calendar (icon: Calendar, route context-aware)
   - Executions (icon: Activity, route: placeholder)
@@ -59,36 +59,6 @@ The sidebar SHALL automatically collapse when viewport width is below the lg bre
 - **AND** hamburger button is clicked
 - **THEN** sidebar SHALL appear as an overlay panel with semi-transparent backdrop
 - **AND** clicking backdrop SHALL close the sidebar
-
-### Requirement: Sidebar agents dropdown shows recent agents
-
-The sidebar SHALL show a dropdown of recently accessed agents (up to 5) when Agents is clicked.
-
-#### Scenario: Recent agents displayed
-- **WHEN** user clicks Agents
-- **THEN** a dropdown SHALL appear showing:
-  - Up to 5 most recently accessed agents
-  - Each agent shows: name, status indicator (dot: green/amber/red)
-  - "View All Agents" option linking to /agents
-
-### Requirement: Sidebar dropdown closes on outside click
-
-The sidebar dropdown SHALL close when clicking outside of it.
-
-#### Scenario: Dropdown closes on outside click
-- **WHEN** dropdown is open
-- **AND** user clicks outside the dropdown
-- **THEN** the dropdown SHALL close
-
-### Requirement: Sidebar dropdown closes on navigation
-
-The sidebar dropdown SHALL close when user navigates to an agent.
-
-#### Scenario: Dropdown closes on navigation
-- **WHEN** dropdown is open
-- **AND** user clicks an agent
-- **THEN** the dropdown SHALL close
-- **AND** navigation to the agent SHALL occur
 
 ### Requirement: Sidebar integrates with status bar
 
