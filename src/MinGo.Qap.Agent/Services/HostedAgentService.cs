@@ -306,9 +306,9 @@ public class HostedAgentService : BackgroundService
 
                 // Dynamic interval update from heartbeat response
                 if (heartbeatResponse?.NextHeartbeatIntervalSeconds > 0 &&
-                    heartbeatResponse.NextHeartbeatIntervalSeconds != _heartbeatInterval.TotalSeconds)
+                    heartbeatResponse.NextHeartbeatIntervalSeconds.Value != (int)_heartbeatInterval.TotalSeconds)
                 {
-                    _heartbeatInterval = TimeSpan.FromSeconds(heartbeatResponse.NextHeartbeatIntervalSeconds);
+                    _heartbeatInterval = TimeSpan.FromSeconds(heartbeatResponse.NextHeartbeatIntervalSeconds.Value);
                     _logger.LogInformation("Heartbeat interval updated from response: {Interval}s",
                         _heartbeatInterval.TotalSeconds);
                 }

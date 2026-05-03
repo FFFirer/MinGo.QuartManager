@@ -3,9 +3,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { agentApi } from '../api';
 import type { AgentDetailDto, AgentSchedulerDto } from '../types';
-import { StatusBadge } from '../components/StatusBadge';
+import StatusBadge from '../components/StatusBadge';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
-import { PageHeader } from '../components/PageHeader';
+import PageHeader from '../components/PageHeader';
 
 type ApiResponse<T> = {
   data: T;

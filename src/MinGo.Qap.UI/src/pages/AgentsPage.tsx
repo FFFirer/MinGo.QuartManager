@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { agentApi } from '../api';
 import { AgentSummaryDto } from '../types';
-import { StatusBadge } from '../components/StatusBadge';
+import StatusBadge from '../components/StatusBadge';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
-import { PageHeader } from '../components/PageHeader';
+import PageHeader from '../components/PageHeader';
 import { AlertCircle } from 'lucide-react';
 
 // Simple formatter for ISO dates to a readable string

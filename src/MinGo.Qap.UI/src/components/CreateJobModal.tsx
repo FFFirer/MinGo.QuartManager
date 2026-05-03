@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { useCreateJob } from '../hooks/useClusters';
-import { useManifest } from '../hooks/useClusters';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { jobApi, manifestApi } from '../api';
 import toast from 'react-hot-toast';
 import type { CreateJobRequest, ScheduleDto, QuartzOptionsDto, JobTypeInfoDto, ParameterInfoDto, ScheduleType } from '../types';
 
 interface CreateJobModalProps {
-  clusterId: string;
+  schedulerName: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -23,9 +23,25 @@ const MISFIRE_POLICIES = [
   { value: 'DoNothing', label: 'Do Nothing' },
 ];
 
-const CreateJobModal: React.FC<CreateJobModalProps> = ({ clusterId, isOpen, onClose }) => {
-  const { data: manifest } = useManifest(clusterId);
-  const createJob = useCreateJob(clusterId);
+const CreateJobModal: React.FC<CreateJobModalProps> = ({ schedulerName, isOpen, onClose }) => {
+  const queryClient = useQueryClient();
+
+  const { data: manifest } = useQuery({
+    queryKey: ['manifest', schedulerName],
+    queryFn: async () => {
+      const response = await manifestApi.get(schedulerName);
+      if (!response.success) throw new Error(response.errorMessage);
+      return response.data;
+    },
+    enabled: !!schedulerName,
+  });
+
+  const createJob = useMutation({
+    mutationFn: (request: CreateJobRequest) => jobApi.create(schedulerName, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs', schedulerName] });
+    },
+  });
   
   // Form state
   const [step, setStep] = useState(1);

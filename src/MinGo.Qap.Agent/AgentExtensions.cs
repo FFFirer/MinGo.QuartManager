@@ -5,6 +5,7 @@ using MinGo.Qap.Shared.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Builder;
+using Quartz;
 
 namespace MinGo.Qap.Agent;
 

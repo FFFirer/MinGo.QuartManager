@@ -26,8 +26,9 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
       case 'paused':
         return 'bg-amber-500';
       case 'Offline':
-      case 'blocked':
         return 'bg-slate-500';
+      case 'blocked':
+        return 'bg-red-500';
       case 'Pending':
         return 'bg-blue-500';
       case 'Deleted':

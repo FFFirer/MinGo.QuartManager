@@ -78,7 +78,9 @@ public class HeartbeatService : BackgroundService
         }
         
         // 收集心跳数据
-        var schedulerState = await quartzService.GetSchedulerStateAsync();
+        var schedulerNames = await quartzService.GetSchedulerNamesAsync();
+        var schedulerName = schedulerNames.FirstOrDefault() ?? string.Empty;
+        var schedulerState = await quartzService.GetSchedulerStateAsync(schedulerName);
         var heartbeatRequest = BuildHeartbeatRequest(schedulerState);
         
         // 发送心跳到实例级别端点

@@ -114,7 +114,7 @@ export function PlatformDashboardPage() {
           ) : (
             <>
               <StatsCard
-                title="Total Clusters"
+                title="Total Schedulers"
                 value={data?.totalClusters ?? 0}
                 icon={<Layers size={20} />}
                 variant="default"
@@ -221,13 +221,13 @@ export function PlatformDashboardPage() {
         </div>
       </div>
 
-      {/* Clusters and Upcoming Jobs */}
+      {/* Schedulers and Upcoming Jobs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Clusters Overview */}
+        {/* Schedulers Overview */}
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-slate-50">Clusters Overview</h3>
-            <Link to="/clusters" className="text-sm text-blue-400 hover:text-blue-300">
+            <h3 className="text-lg font-semibold text-slate-50">Schedulers Overview</h3>
+            <Link to="/schedulers" className="text-sm text-blue-400 hover:text-blue-300">
               View All →
             </Link>
           </div>
@@ -241,7 +241,7 @@ export function PlatformDashboardPage() {
               {data?.clusters.slice(0, 4).map(cluster => (
                 <Link
                   key={cluster.id}
-                  to={`/clusters/${cluster.id}`}
+                  to={`/schedulers/${encodeURIComponent(cluster.name)}`}
                   className="p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
                 >
                   <div className="flex items-center gap-2 mb-2">
@@ -265,7 +265,7 @@ export function PlatformDashboardPage() {
           </div>
           <UpcomingJobsList
             jobs={data?.upcomingJobs ?? []}
-            showCluster
+            showScheduler
             loading={isLoading}
           />
         </div>

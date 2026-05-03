@@ -1,14 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useCluster } from '../hooks/useClusters';
+import { useParams, useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth } from 'date-fns';
 import { ChevronLeft, ChevronRight, List, Clock, Play, Eye, Copy, Calendar as CalendarIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import 'react-calendar/dist/Calendar.css';
 import StatusBadge from '../components/StatusBadge';
-import ClusterTabs from '../components/ClusterTabs';
 
 interface CalendarJob {
   jobKey: string;
@@ -27,8 +25,9 @@ interface CalendarData {
 
 type ViewMode = 'month' | 'week' | 'list';
 
-async function fetchCalendar(clusterId: string, year: number, month: number): Promise<CalendarData> {
-  const response = await fetch(`/api/clusters/${clusterId}/calendar?year=${year}&month=${month}`);
+async function fetchCalendar(schedulerName: string, year: number, month: number): Promise<CalendarData> {
+  // TODO: update to /api/schedulers/{name}/calendar when backend endpoint is available
+  const response = await fetch(`/api/clusters/${encodeURIComponent(schedulerName)}/calendar?year=${year}&month=${month}`);
   if (!response.ok) {
     throw new Error('Failed to fetch calendar');
   }
@@ -37,9 +36,8 @@ async function fetchCalendar(clusterId: string, year: number, month: number): Pr
 }
 
 export function CalendarPage() {
-  const { clusterId } = useParams<{ clusterId: string }>();
+  const { schedulerName } = useParams<{ schedulerName: string }>();
   const navigate = useNavigate();
-  const { data: cluster } = useCluster(clusterId || '');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedJob, setSelectedJob] = useState<CalendarJob | null>(null);
@@ -49,8 +47,9 @@ export function CalendarPage() {
   const month = currentDate.getMonth() + 1;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['cluster-calendar', clusterId, year, month],
-    queryFn: () => fetchCalendar(clusterId!, year, month),
+    queryKey: ['scheduler-calendar', schedulerName, year, month],
+    queryFn: () => fetchCalendar(schedulerName!, year, month),
+    enabled: !!schedulerName,
   });
 
   const jobFireTimesMap = useMemo(() => {
@@ -142,10 +141,11 @@ export function CalendarPage() {
 
   return (
     <div className="p-6" onClick={handleCloseMenu}>
-      <ClusterTabs
-        clusterName={clusterId || 'Cluster'}
-        clusterStatus="Unknown"
-      />
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <h1 className="text-2xl font-bold text-slate-50">{schedulerName || 'Scheduler'}</h1>
+        <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Calendar</span>
+      </div>
 
       {/* Calendar Controls */}
       <div className="flex items-center justify-between mb-4">
@@ -283,7 +283,7 @@ export function CalendarPage() {
             <p className="text-xs text-slate-400">{selectedJob.jobType}</p>
           </div>
           <button
-            onClick={() => navigate(`/clusters/${clusterId}/jobs/${selectedJob.jobKey}`)}
+            onClick={() => navigate(`/schedulers/${encodeURIComponent(schedulerName!)}/jobs/${encodeURIComponent(selectedJob.jobKey)}`)}
             className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
           >
             <Eye size={14} />

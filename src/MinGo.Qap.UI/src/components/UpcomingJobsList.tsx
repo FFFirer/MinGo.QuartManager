@@ -4,8 +4,8 @@ import StatusBadge from './StatusBadge';
 interface UpcomingJob {
   jobKey: string;
   jobType: string;
-  clusterId?: string;
-  clusterName?: string;
+  schedulerId?: string;
+  schedulerName?: string;
   scheduleDescription: string;
   nextFireTime: string;
 }
@@ -13,7 +13,7 @@ interface UpcomingJob {
 interface UpcomingJobsListProps {
   jobs: UpcomingJob[];
   maxItems?: number;
-  showCluster?: boolean;
+  showScheduler?: boolean;
   loading?: boolean;
   onJobClick?: (jobKey: string) => void;
 }
@@ -21,7 +21,7 @@ interface UpcomingJobsListProps {
 export function UpcomingJobsList({ 
   jobs, 
   maxItems = 10, 
-  showCluster = false,
+  showScheduler = false,
   loading = false,
   onJobClick 
 }: UpcomingJobsListProps) {
@@ -74,9 +74,9 @@ export function UpcomingJobsList({
               </p>
             </div>
           </div>
-          {showCluster && job.clusterName && (
+          {showScheduler && job.schedulerName && (
             <span className="text-xs text-slate-500 bg-slate-700 px-2 py-1 rounded">
-              {job.clusterName}
+              {job.schedulerName}
             </span>
           )}
         </div>

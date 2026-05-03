@@ -108,10 +108,8 @@ public class SchedulerReporterService
         var jobStoreType = metaData.JobStoreType?.Name;
         var threadPoolType = metaData.ThreadPoolType?.Name;
 
-        // RunningSince 转为 UTC
-        var runningSince = metaData.RunningSince.HasValue
-            ? new DateTimeOffset(metaData.RunningSince.Value, TimeSpan.Zero)
-            : (DateTimeOffset?)null;
+        // RunningSince 已是 DateTimeOffset?
+        var runningSince = metaData.RunningSince;
 
         return new SchedulerInfoDto
         {
@@ -133,7 +131,7 @@ public class SchedulerReporterService
             Properties = new Dictionary<string, string>
             {
                 ["SchedulerInstanceId"] = scheduler.SchedulerInstanceId,
-                ["SupportsPersistence"] = metaData.SupportsPersistence.ToString(),
+                ["SupportsPersistence"] = metaData.JobStoreSupportsPersistence.ToString(),
                 ["TriggerCount"] = triggerCounts.ToString()
             }
         };
