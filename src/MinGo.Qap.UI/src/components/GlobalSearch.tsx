@@ -74,9 +74,9 @@ const GlobalSearch: React.FC = () => {
 
   const results = useMemo(() => {
     const q = query?.trim() || '';
-    const agentsHits = q ? agentFuse?.search?.(q) ?? [] : agents;
-    const schedHits = q ? schedulerFuse?.search?.(q) ?? [] : schedulers;
-    const jobsHits = q ? jobsFuse?.search?.(q) ?? [] : jobsList;
+    const agentsHits = q ? agentFuse?.search?.(q) ?? [] : (Array.isArray(agents) ? agents : []);
+    const schedHits = q ? schedulerFuse?.search?.(q) ?? [] : (Array.isArray(schedulers) ? schedulers : []);
+    const jobsHits = q ? jobsFuse?.search?.(q) ?? [] : (Array.isArray(jobsList) ? jobsList : []);
 
     // Normalize to a common structure and cap per group
     const topAgents = (agentsHits as any[]).slice(0, MAX_PER_GROUP).map(a => ({ type: 'Agents', data: a.item ?? a, label: a.item?.name ?? a.id }));
