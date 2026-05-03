@@ -1,12 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { agentApi } from '../api';
-import { AgentSummaryDto } from '../types';
+import { ApiResponse, PagedResponse, AgentSummaryDto } from '../types';
 import StatusBadge from '../components/StatusBadge';
-import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import PageHeader from '../components/PageHeader';
 import { AlertCircle } from 'lucide-react';
+import DataTable from '../components/DataTable';
+import PaginationBar from '../components/PaginationBar';
+import { useNavigate } from 'react-router-dom';
 
 // Simple formatter for ISO dates to a readable string
 function formatDate(iso?: string): string {
@@ -23,85 +25,105 @@ function formatDate(iso?: string): string {
 }
 
 const AgentsPage: React.FC = () => {
-  const { data, isLoading, isError, error } = useQuery<AgentSummaryDto[], Error>({
-    queryKey: ['agents'],
-    queryFn: () => agentApi.getAll(),
-    // 30 seconds auto-refresh, don't refetch on window focus to avoid thrashing
+  const navigate = useNavigate();
+  // Pagination state
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
+
+  // Data fetch with pagination
+  const { data, isLoading, isError, error } = useQuery<ApiResponse<PagedResponse<AgentSummaryDto>>, Error>({
+    queryKey: ['agents', page, pageSize],
+    queryFn: async () => {
+      const response = await agentApi.getAll(page, pageSize);
+      if (!response?.success) throw new Error(response?.errorMessage ?? 'Failed to load agents');
+      // response.data is expected to be PagedResponse<AgentSummaryDto>
+      return response as ApiResponse<PagedResponse<AgentSummaryDto>>;
+    },
     refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 
-  const agents = (data ?? []) as AgentSummaryDto[];
-  const headerCols = useMemo(
-    () => ['Name', 'URL', 'Status', 'Scheduler', 'Last Heartbeat', 'Started At'],
-    []
-  );
+  const paged = (data?.data ?? { items: [], total: 0, page, pageSize, totalPages: 0 }) as PagedResponse<AgentSummaryDto>;
+  const agents = paged.items ?? [];
+
+  // Subtitle shows total items from pagination response
+  const totalItems = paged.total ?? 0;
+  // Computed pagination for UI controls
+  const totalPages = paged.totalPages ?? Math.max(1, Math.ceil(totalItems / pageSize));
+
+  const columns: any[] = [
+    {
+      header: 'Name',
+      accessor: (row: AgentSummaryDto) => (
+        <Link to={`/agents/${row.id}`} className="hover:underline">{row.name}</Link>
+      ),
+    },
+    {
+      header: 'URL',
+      accessor: (row: AgentSummaryDto) => (
+        <a href={row.url} target="_blank" rel="noreferrer" className="text-slate-200 hover:underline">{row.url}</a>
+      ),
+    },
+    {
+      header: 'Status',
+      accessor: (row: AgentSummaryDto) => <StatusBadge status={row.status as any} />,
+    },
+    {
+      header: 'Scheduler',
+      accessor: (row: AgentSummaryDto) => row.schedulerCount ?? 0,
+    },
+    {
+      header: 'Last Heartbeat',
+      accessor: (row: AgentSummaryDto) => formatDate(row.lastHeartbeat),
+    },
+    {
+      header: 'Started At',
+      accessor: (row: AgentSummaryDto) => formatDate(row.startedAt),
+    },
+  ];
+
+  // Navigation on row click
+  const onRowClick = (row: AgentSummaryDto) => {
+    navigate(`/agents/${row.id}`);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-50">
-      <PageHeader title="Agents" subtitle={`${agents.length} total`} />
+    <div className="p-6">
+      <PageHeader title="Agents" subtitle={`${totalItems} total`} />
 
-      <div className="px-4 py-6">
-        {/* Column header row */}
-        <div className="grid grid-cols-6 gap-4 text-xs uppercase tracking-wider text-slate-300 border-b border-slate-700 py-2 px-2 bg-slate-900">
-          {headerCols.map((col) => (
-            <div key={col} className="px-2 py-1">
-              {col}
-            </div>
-          ))}
-        </div>
-
-        {/* Loading state */}
-        {isLoading && (
-          <div className="mt-2 space-y-2">
-            <LoadingSkeleton />
-            <LoadingSkeleton />
-            <LoadingSkeleton />
-          </div>
-        )}
-
-        {/* Error state */}
-        {isError && (
-          <div className="mt-4 flex items-center text-sm text-amber-300">
-            <AlertCircle className="mr-2" />
-            Failed to load agents: {error?.message ?? 'Unknown error'}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && agents.length === 0 && (
-          <div className="flex items-center justify-center py-12 text-slate-400">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            No agents found.
-          </div>
-        )}
-
-        {/* Data rows */}
-        {!isLoading && agents.length > 0 && (
-          <div className="mt-2 border-t border-slate-700">
-            {agents.map((agent) => (
-              <Link
-                to={`/agents/${agent.id}`}
-                key={agent.id}
-                className="grid grid-cols-6 items-center gap-4 py-3 px-2 hover:bg-slate-800 border-b border-slate-700"
-              >
-                <div className="truncate pr-2">{agent.name}</div>
-                <div className="truncate pr-2">
-                  <a href={agent.url} target="_blank" rel="noreferrer" className="text-slate-200 hover:underline">
-                    {agent.url}
-                  </a>
-                </div>
-                <div className="pr-2">
-                  <StatusBadge status={agent.status as any} />
-                </div>
-                <div className="pr-2">{agent.schedulerCount ?? 0}</div>
-                <div className="pr-2 text-slate-200">{formatDate(agent.lastHeartbeat)}</div>
-                <div className="pr-2 text-slate-200">{formatDate(agent.startedAt)}</div>
-              </Link>
-            ))}
-          </div>
-        )}
+      {/* DataTable replaces manual grid and rows */}
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+        <DataTable
+          columns={columns}
+          data={agents}
+          onRowClick={onRowClick}
+          loading={isLoading}
+          emptyMessage="No agents found."
+        />
       </div>
+
+      {/* Pagination controls */}
+      <PaginationBar
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+      />
+
+      {/* Error state kept as-is to not break existing handling */}
+      {isError && (
+        <div className="mt-4 flex items-center text-sm text-amber-300">
+          <AlertCircle className="mr-2" />
+          Failed to load agents: {error?.message ?? 'Unknown error'}
+        </div>
+      )}
     </div>
   );
 };

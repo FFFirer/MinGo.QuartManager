@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { schedulerApi } from '../api';
 import StatusBadge from '../components/StatusBadge';
+import DataTable from '../components/DataTable';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { ExternalLink } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
@@ -107,34 +108,26 @@ const SchedulerDetailPage: React.FC = () => {
       {/* Associated Agents */}
       <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
         <h3 className="text-lg font-semibold text-slate-50 mb-3">Associated Agents ({scheduler.agents.length})</h3>
-        {scheduler.agents.length === 0 ? (
-          <p className="text-slate-400 text-sm">No agents associated with this scheduler.</p>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase px-4 py-2">Name</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase px-4 py-2">URL</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase px-4 py-2">Status</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase px-4 py-2">Reported At</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scheduler.agents.map((agent) => (
-                <tr
-                  key={agent.agentId}
-                  className="border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/agents/${agent.agentId}`)}
-                >
-                  <td className="px-4 py-3 text-sm text-blue-400 hover:text-blue-300">{agent.agentName || agent.agentId}</td>
-                  <td className="px-4 py-3 text-sm text-slate-300">{agent.agentUrl}</td>
-                  <td className="px-4 py-3"><StatusBadge status={agent.agentStatus} /></td>
-                  <td className="px-4 py-3 text-sm text-slate-300">{formatDate(agent.reportedAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <DataTable
+          columns={[
+            {
+              header: 'Name',
+              accessor: (row: SchedulerAgentDto) => (
+                <span className="text-blue-400 hover:text-blue-300">{row.agentName || row.agentId}</span>
+              ),
+            },
+            { header: 'URL', accessor: (row: SchedulerAgentDto) => row.agentUrl },
+            {
+              header: 'Status',
+              accessor: (row: SchedulerAgentDto) => <StatusBadge status={row.agentStatus} />,
+            },
+            { header: 'Reported At', accessor: (row: SchedulerAgentDto) => formatDate(row.reportedAt) },
+          ]}
+          data={scheduler.agents}
+          onRowClick={(row) => navigate(`/agents/${row.agentId}`)}
+          emptyMessage="No agents associated with this scheduler."
+          showBorder={false}
+        />
       </div>
     </div>
   );

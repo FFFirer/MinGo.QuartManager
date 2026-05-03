@@ -7,6 +7,7 @@ import { jobApi } from '../api';
 import CreateJobPanel from '../components/CreateJobPanel';
 import StatusBadge from '../components/StatusBadge';
 import DataTable from '../components/DataTable';
+import PaginationBar from '../components/PaginationBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import PageHeader from '../components/PageHeader';
 import type { JobSummaryDto } from '../types';
@@ -115,10 +116,12 @@ const JobsPage: React.FC = () => {
 
   // Pagination helpers derived from current data set
   const totalItems = Array.isArray(jobs) ? jobs.length : 0;
-  const startIndex = totalItems > 0 ? (page - 1) * pageSize + 1 : 0;
-  const endIndex = totalItems > 0 ? Math.min(page * pageSize, totalItems) : 0;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const pageNumbers = Array.from({ length: totalPages }, (_, idx) => idx + 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1);
+  };
 
   if (isLoading) {
     return <div className="p-8 text-slate-400">Loading...</div>;
@@ -135,23 +138,23 @@ const JobsPage: React.FC = () => {
   // Columns definition. Insert a checkbox column as the FIRST column for batch selection.
   // We cast to `any` to allow a React element in the header and cells without touching DataTable.tsx.
   const columns: any[] = [
-    {
-      header: (
-        <input
-          type="checkbox"
-          checked={!!jobs && jobs.length > 0 && selectedKeys.size === jobs.length}
-          onChange={(e) => {
-            e.stopPropagation();
-            if (e.target.checked) {
-              const keys = (jobs || []).map((j) => j.jobKey);
-              setSelectedKeys(new Set<string>(keys));
-            } else {
-              setSelectedKeys(new Set<string>());
-            }
-          }}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) as unknown as string,
+      {
+        header: (
+          <input
+            type="checkbox"
+            checked={!!jobs && jobs.length > 0 && selectedKeys.size === jobs.length}
+            onChange={(e) => {
+              e.stopPropagation();
+              if (e.target.checked) {
+                const keys = (jobs || []).map((j) => j.jobKey);
+                setSelectedKeys(new Set<string>(keys));
+              } else {
+                setSelectedKeys(new Set<string>());
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ),
       accessor: (row: JobSummaryDto) => (
         <input
           type="checkbox"
@@ -301,57 +304,14 @@ const JobsPage: React.FC = () => {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between mt-4 gap-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-          {pageNumbers.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPage(p)}
-              className={
-                p === page
-                  ? 'px-3 py-1.5 rounded bg-slate-700 text-white'
-                  : 'px-3 py-1.5 rounded text-slate-300 hover:bg-slate-700'
-              }
-            >
-              {p}
-            </button>
-          ))}
-          <button
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Next
-          </button>
-        </div>
-        <div className="text-sm text-slate-400">
-          Showing {startIndex}-{endIndex} of {totalItems} items
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-400">Page size</span>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              const newSize = parseInt(e.target.value, 10);
-              setPageSize(newSize);
-              setPage(1);
-            }}
-            className="bg-slate-800 text-slate-300 rounded px-2 py-1"
-          >
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-        </div>
-      </div>
+      <PaginationBar
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+      />
 
       {/* Create Job Panel */}
       {isCreateModalOpen && (
