@@ -158,7 +158,7 @@ public class AgentRegistrationService : IAgentRegistrationService
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var registrationResponse = await response.Content.ReadFromJsonAsync<RegisterAgentResponse>(MinGoJsonDefaults.Options, cancellationToken);
+                    var registrationResponse = await response.Content.ReadFromApiResponseAsync<RegisterAgentResponse>(MinGoJsonDefaults.Options, cancellationToken);
                     if (registrationResponse == null)
                     {
                         throw new InvalidOperationException("Invalid registration response from platform");

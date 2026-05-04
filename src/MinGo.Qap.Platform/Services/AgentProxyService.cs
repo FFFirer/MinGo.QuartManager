@@ -167,7 +167,18 @@ public class AgentProxyService : IAgentProxyService
                 return default;
             }
 
-            return await response.Content.ReadFromJsonAsync<T>(MinGoJsonDefaults.Options);
+            try
+            {
+                return await response.Content.ReadFromApiResponseAsync<T>(MinGoJsonDefaults.Options);
+            }
+            catch (ApiResponseException apiEx)
+            {
+                _logger.LogError(
+                    "Agent returned business error for scheduler {SchedulerName} {Path}: {ErrorCode} - {Message}",
+                    schedulerName, path, apiEx.ErrorCode, apiEx.Message);
+
+                throw new AgentException(apiEx.Message, apiEx.ErrorCode ?? "API_ERROR");
+            }
         }
 
         var error = await response.Content.ReadAsStringAsync();

@@ -13,6 +13,7 @@ public class HostedAgentService : BackgroundService
 {
     private readonly IAgentRegistrationService _registrationService;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<AgentConfig> _options;
     private readonly ILogger<HostedAgentService> _logger;
     private readonly IAgentIdentityStore _identityStore;
@@ -26,13 +27,15 @@ public class HostedAgentService : BackgroundService
 
     public HostedAgentService(
         IAgentRegistrationService registrationService,
-        IServiceProvider serviceProvider,
+        IServiceProvider serviceProvider, 
+        IServiceScopeFactory scopeFactory,
         IOptions<AgentConfig> options,
         ILogger<HostedAgentService> logger,
         IAgentIdentityStore identityStore)
     {
         _registrationService = registrationService;
         _serviceProvider = serviceProvider;
+        _scopeFactory = scopeFactory;
         _options = options;
         _logger = logger;
         _identityStore = identityStore;
@@ -125,7 +128,7 @@ public class HostedAgentService : BackgroundService
 
                 // Store registration info
                 _registrationInfo = _registrationService.GetRegistrationInfo();
-                _isRegistered = true;
+                _isRegistered = !string.IsNullOrWhiteSpace(_registrationInfo?.AgentId);
                 _consecutiveHeartbeatFailures = 0;
 
                 // Update heartbeat interval from registration response
@@ -221,7 +224,7 @@ public class HostedAgentService : BackgroundService
 
         try
         {
-            using var scope = _serviceProvider.CreateScope();
+            await using var scope = _scopeFactory.CreateAsyncScope();
             var reporter = scope.ServiceProvider.GetRequiredService<SchedulerReporterService>();
 
             var success = await reporter.ReportAsync(
@@ -293,7 +296,7 @@ public class HostedAgentService : BackgroundService
 
             if (response.IsSuccessStatusCode)
             {
-                var heartbeatResponse = await response.Content.ReadFromJsonAsync<AgentHeartbeatResponseV2>(MinGoJsonDefaults.Options, cancellationToken);
+                var heartbeatResponse = await response.Content.ReadFromApiResponseAsync<AgentHeartbeatResponseV2>(MinGoJsonDefaults.Options, cancellationToken);
                 _logger.LogDebug("Heartbeat sent successfully to agent {AgentId}", _registrationInfo.AgentId);
                 _consecutiveHeartbeatFailures = 0;
                 _isRegistered = true;
