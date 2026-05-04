@@ -3,6 +3,7 @@ using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.NSwag;
 using MinGo.Qap.Platform.Services;
 using Serilog;
+using System.Net.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +34,21 @@ builder.Services.AddDbContext<PlatformDbContext>(options =>
 builder.Services.AddHttpClient("AgentApi", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
+})
+.ConfigurePrimaryHttpMessageHandler(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var skipSsl = config.GetValue<bool>("AgentProxy:SkipSslVerify");
+
+    var handler = new SocketsHttpHandler();
+    if (skipSsl)
+    {
+        handler.SslOptions = new SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = (_, _, _, _) => true
+        };
+    }
+    return handler;
 });
 
 // 4. 添加服务
