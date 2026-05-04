@@ -14,7 +14,8 @@ builder.Host.UseSerilog();
 
 // Add Minimal API support
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApiDocument();
 
 // Add health checks
 builder.Services.AddHealthChecks();
@@ -28,16 +29,16 @@ builder.Services.AddQuartz(q =>
     q.UseInMemoryStore();
 
     // Schedule HelloJob to run every 10 seconds
-    q.ScheduleJob<HelloJob>(trigger => trigger
-        .WithIdentity("HelloJob-trigger", "sample")
-        .StartNow()
-        .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever()));
+    // q.ScheduleJob<HelloJob>(trigger => trigger
+    //     .WithIdentity("HelloJob-trigger", "sample")
+    //     .StartNow()
+    //     .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever()));
 
     // Schedule ScheduledJob to run every 60 seconds (health check)
-    q.ScheduleJob<ScheduledJob>(trigger => trigger
-        .WithIdentity("ScheduledJob-trigger", "sample")
-        .StartNow()
-        .WithSimpleSchedule(x => x.WithIntervalInSeconds(60).RepeatForever()));
+    // q.ScheduleJob<ScheduledJob>(trigger => trigger
+    //     .WithIdentity("ScheduledJob-trigger", "sample")
+    //     .StartNow()
+    //     .WithSimpleSchedule(x => x.WithIntervalInSeconds(60).RepeatForever()));
 
     // Register ManualTriggerJob as durable job (no trigger, triggered via API)
     q.AddJob<ManualTriggerJob>(j => j
@@ -60,8 +61,10 @@ var app = builder.Build();
 // Configure pipeline
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    // app.UseSwagger();
+    // app.UseSwaggerUI();
+    app.UseOpenApi();
+    app.UseSwaggerUi();
 }
 
 // Map MinGo Agent HTTP API (replaces custom Controllers)
