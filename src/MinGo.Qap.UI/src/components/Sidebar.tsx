@@ -1,8 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Activity, LayoutDashboard, Layers, Server, Settings,
+  Activity, LayoutDashboard, Layers, Server,
   Keyboard, PanelLeftClose, PanelLeft,
-  Calendar
 } from 'lucide-react';
 import { useLayout } from './LayoutContext';
 
@@ -77,14 +76,7 @@ export default function Sidebar() {
           <li>
             <NavItem to="/schedulers" icon={<Layers size={18} />} label="Schedulers" collapsed={collapsed} isActive={checkActive} />
           </li>
-          <li>
-            <NavItem to="/schedulers" icon={<Calendar size={18} />} label="Calendar" 
-                     collapsed={collapsed} isActive={checkActive}
-                     active={checkActiveStart('/schedulers/') && location.pathname.includes('calendar')} />
-          </li>
-          <li>
-            <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" collapsed={collapsed} isActive={checkActive} />
-          </li>
+
         </ul>
       </nav>
 

@@ -1,19 +1,8 @@
-# Cluster Calendar Specification
-
-## Purpose
-
-This specification defined the requirements for the scheduler calendar view feature. **This feature has been removed** due to backend API not being implemented.
-
-**Status:** Deprecated  
-**Last Updated:** 2026-05-04
-
----
-
 ## REMOVED Requirements
 
 ### Requirement: Calendar displays month view by default
-**Reason**: Calendar page and its backend API endpoint are not implemented. Entire Calendar feature is removed.
-**Migration**: None.
+**Reason**: Calendar page and its backend API endpoint are not implemented. The entire Calendar feature is removed.
+**Migration**: No migration needed. Calendar was non-functional.
 
 ### Requirement: Calendar supports month navigation
 **Reason**: Removed along with Calendar page.
@@ -37,8 +26,4 @@ This specification defined the requirements for the scheduler calendar view feat
 
 ### Requirement: Calendar API uses schedulerName
 **Reason**: Removed along with Calendar page.
-**Migration**: None.
-
-### Requirement: Calendar navigation from sidebar
-**Reason**: Cluster context sidebar removed. Calendar feature entirely deprecated.
 **Migration**: None.

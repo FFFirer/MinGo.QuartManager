@@ -9,7 +9,7 @@ import SchedulerDetailPage from './pages/SchedulerDetailPage';
 import JobsPage from './pages/JobsPage';
 import JobDetailPage from './pages/JobDetailPage';
 import PlatformDashboardPage from './pages/PlatformDashboardPage';
-import CalendarPage from './pages/CalendarPage';
+
 import ToastProvider from './components/ToastProvider';
 import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
@@ -37,7 +37,6 @@ function KeyboardShortcuts() {
       else if (e.altKey && e.key === 'a') { e.preventDefault(); navigate('/agents'); }
       else if (e.altKey && e.key === 's') { e.preventDefault(); navigate('/schedulers'); }
       else if (e.altKey && e.key === 'e') { e.preventDefault(); navigate('/executions'); }
-      else if (e.altKey && e.key === 'c') { e.preventDefault(); navigate('/schedulers'); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -60,7 +59,6 @@ function AppLayout() {
             <Route path="/schedulers/:schedulerName" element={<SchedulerDetailPage />} />
             <Route path="/schedulers/:schedulerName/jobs" element={<JobsPage />} />
             <Route path="/schedulers/:schedulerName/jobs/:jobKey" element={<JobDetailPage />} />
-            <Route path="/schedulers/:schedulerName/calendar" element={<CalendarPage />} />
           </Routes>
         </main>
         <FloatingActionPalette />

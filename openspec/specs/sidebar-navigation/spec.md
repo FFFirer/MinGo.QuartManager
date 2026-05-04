@@ -13,7 +13,7 @@ This specification defines the requirements for the sidebar navigation with Agen
 
 ### Requirement: Sidebar displays Dashboard, Agents, Schedulers navigation
 
-The sidebar SHALL display navigation items (Dashboard, Agents, Schedulers, Calendar, Executions, Settings) as primary navigation.
+The sidebar SHALL display navigation items (Dashboard, Agents, Schedulers, Executions) as primary navigation. Calendar and Settings items are REMOVED from the sidebar.
 
 #### Scenario: Base navigation displays
 - **WHEN** sidebar is rendered
@@ -21,9 +21,7 @@ The sidebar SHALL display navigation items (Dashboard, Agents, Schedulers, Calen
   - Dashboard (icon: LayoutDashboard, route: /)
   - Agents (icon: Server, route: /agents)
   - Schedulers (icon: Layers, route: /schedulers)
-  - Calendar (icon: Calendar, route context-aware)
   - Executions (icon: Activity, route: placeholder)
-  - Settings (icon: Settings, route: /settings)
 
 ### Requirement: Sidebar supports collapsed and expanded states
 
@@ -91,5 +89,3 @@ The sidebar SHALL support keyboard shortcuts for quick navigation.
 - **THEN** the application SHALL navigate to Schedulers
 - **AND** **WHEN** user presses Alt+E
 - **THEN** the application SHALL navigate to Executions
-- **AND** **WHEN** user presses Alt+C
-- **THEN** the application SHALL navigate to Calendar
