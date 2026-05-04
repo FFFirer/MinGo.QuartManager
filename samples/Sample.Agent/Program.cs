@@ -1,4 +1,5 @@
 using MinGo.Qap.Agent;
+using MinGo.Qap.Agent.OpenApi;
 using MinGo.Sample.Agent.Jobs;
 using Quartz;
 using Serilog;
@@ -15,7 +16,7 @@ builder.Host.UseSerilog();
 // Add Minimal API support
 builder.Services.AddEndpointsApiExplorer();
 // builder.Services.AddSwaggerGen();
-builder.Services.AddOpenApiDocument();
+builder.Services.AddMinGoAgentOpenApi();
 
 // Add health checks
 builder.Services.AddHealthChecks();

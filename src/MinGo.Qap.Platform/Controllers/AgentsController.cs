@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using MinGo.Qap.Platform.Services;
+using MinGo.Qap.Shared.Attributes;
 using MinGo.Qap.Shared.Models;
 
 namespace MinGo.Qap.Platform.Controllers;
@@ -29,6 +30,7 @@ public class AgentsController : ControllerBase
     /// 注册 Agent（首次注册或重连）
     /// </summary>
     [HttpPost]
+    [SwaggerHeader("X-Agent-Token", "Agent 身份认证 Token。由 Agent 配置中的 platform.apiToken 提供。")]
     public async Task<ActionResult<ApiResponse<RegisterAgentResponse>>> Register(
         [FromBody] RegisterAgentRequest request)
     {
@@ -81,6 +83,7 @@ public class AgentsController : ControllerBase
     /// 删除 Agent（软删除）
     /// </summary>
     [HttpDelete("{agentId}")]
+    [SwaggerHeader("X-Agent-Token", "Agent 身份认证 Token。由 Agent 配置中的 platform.apiToken 提供。")]
     public async Task<ActionResult<ApiResponse<object>>> Delete(string agentId)
     {
         // 验证 Token

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using MinGo.Qap.Platform.Services;
+using MinGo.Qap.Shared.Attributes;
 using MinGo.Qap.Shared.Models;
 
 namespace MinGo.Qap.Platform.Controllers;
@@ -24,6 +25,7 @@ public class JobsController : ControllerBase
     /// 获取 Job 列表
     /// </summary>
     [HttpGet]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<List<JobSummaryDto>>>> GetList(
         string schedulerName,
         [FromQuery] int page = 1,
@@ -49,6 +51,7 @@ public class JobsController : ControllerBase
     /// 获取 Job 详情
     /// </summary>
     [HttpGet("{jobKey}")]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<JobDefinitionDto>>> Get(string schedulerName, string jobKey)
     {
         var job = await _jobService.GetAsync(schedulerName, jobKey);
@@ -64,6 +67,7 @@ public class JobsController : ControllerBase
     /// 创建 Job
     /// </summary>
     [HttpPost]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<JobDefinitionDto>>> Create(string schedulerName, [FromBody] CreateJobRequest request)
     {
         try
@@ -87,6 +91,7 @@ public class JobsController : ControllerBase
     /// 更新 Job
     /// </summary>
     [HttpPut("{jobKey}")]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         string schedulerName,
         string jobKey,
@@ -111,6 +116,7 @@ public class JobsController : ControllerBase
     /// 删除 Job
     /// </summary>
     [HttpDelete("{jobKey}")]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<object>>> Delete(string schedulerName, string jobKey)
     {
         try
@@ -132,6 +138,7 @@ public class JobsController : ControllerBase
     /// 手动触发 Job
     /// </summary>
     [HttpPost("{jobKey}/trigger")]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<object>>> Trigger(string schedulerName, string jobKey)
     {
         try
@@ -153,6 +160,7 @@ public class JobsController : ControllerBase
     /// 暂停 Job
     /// </summary>
     [HttpPost("{jobKey}/pause")]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<object>>> Pause(string schedulerName, string jobKey)
     {
         try
@@ -174,6 +182,7 @@ public class JobsController : ControllerBase
     /// 恢复 Job
     /// </summary>
     [HttpPost("{jobKey}/resume")]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<object>>> Resume(string schedulerName, string jobKey)
     {
         try

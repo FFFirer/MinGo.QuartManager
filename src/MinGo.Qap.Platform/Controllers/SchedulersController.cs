@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using MinGo.Qap.Platform.Services;
+using MinGo.Qap.Shared.Attributes;
 using MinGo.Qap.Shared.Models;
 
 namespace MinGo.Qap.Platform.Controllers;
@@ -26,6 +27,7 @@ public class SchedulersController : ControllerBase
     /// 获取全局 Scheduler 列表
     /// </summary>
     [HttpGet]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<List<SchedulerSummaryDto>>>> GetList()
     {
         var schedulers = await _schedulerService.GetAllSchedulersAsync();
@@ -50,6 +52,7 @@ public class SchedulersController : ControllerBase
     /// 获取 Scheduler 关联的 Agents
     /// </summary>
     [HttpGet("{schedulerName}/agents")]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<List<SchedulerAgentDto>>>> GetAgents(string schedulerName)
     {
         var agents = await _schedulerService.GetAgentsBySchedulerAsync(schedulerName);

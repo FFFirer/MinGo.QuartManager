@@ -18,7 +18,7 @@ builder.Services.AddEndpointsApiExplorer();
 // builder.Services.AddSwaggerGen(); // Add Swashbuckle package to enable
 builder.Services.AddOpenApiDocument(config =>
 {
-    config.OperationProcessors.Add(new AgentTokenHeaderProcessor());
+    config.OperationProcessors.Add(new SwaggerHeaderProcessor());
 });
 
 // 2. 添加数据库

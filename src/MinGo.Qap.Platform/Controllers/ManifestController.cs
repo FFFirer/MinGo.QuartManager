@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using MinGo.Qap.Shared.Attributes;
 using MinGo.Qap.Shared.Models;
 
 namespace MinGo.Qap.Platform.Controllers;
@@ -22,6 +23,7 @@ public class ManifestController : ControllerBase
     /// 上报 Job Manifest
     /// </summary>
     [HttpPost]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public IActionResult Post(string schedulerName, [FromBody] JobManifestDto manifest)
     {
         if (string.IsNullOrWhiteSpace(schedulerName))
@@ -47,6 +49,7 @@ public class ManifestController : ControllerBase
     /// 获取 Job Manifest
     /// </summary>
     [HttpGet]
+    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public IActionResult Get(string schedulerName)
     {
         if (string.IsNullOrWhiteSpace(schedulerName))
