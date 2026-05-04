@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using MinGo.Qap.Platform.Data;
+using MinGo.Qap.Shared;
 using MinGo.Qap.Shared.Models;
 using System.Net.Http.Json;
 
@@ -57,8 +58,8 @@ public class AgentProxyService : IAgentProxyService
             throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
         }
 
-        var client = CreateClient(agent.Url);
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/{path}");
+        var client = CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"{agent.Url.TrimEnd('/')}/api/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
 
         var response = await client.SendAsync(request);
@@ -73,10 +74,10 @@ public class AgentProxyService : IAgentProxyService
             throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
         }
 
-        var client = CreateClient(agent.Url);
-        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/{path}");
+        var client = CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{agent.Url.TrimEnd('/')}/api/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
-        request.Content = JsonContent.Create(body);
+        request.Content = JsonContent.Create(body, typeof(object), options: MinGoJsonDefaults.Options);
 
         var response = await client.SendAsync(request);
         return await HandleResponse<T>(response, schedulerName, path);
@@ -90,10 +91,10 @@ public class AgentProxyService : IAgentProxyService
             throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
         }
 
-        var client = CreateClient(agent.Url);
-        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/{path}");
+        var client = CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Put, $"{agent.Url.TrimEnd('/')}/api/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
-        request.Content = JsonContent.Create(body);
+        request.Content = JsonContent.Create(body, typeof(object), options: MinGoJsonDefaults.Options);
 
         var response = await client.SendAsync(request);
         return await HandleResponse<T>(response, schedulerName, path);
@@ -107,8 +108,8 @@ public class AgentProxyService : IAgentProxyService
             throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
         }
 
-        var client = CreateClient(agent.Url);
-        var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/{path}");
+        var client = CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"{agent.Url.TrimEnd('/')}/api/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
 
         var response = await client.SendAsync(request);
@@ -133,8 +134,8 @@ public class AgentProxyService : IAgentProxyService
             var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
             if (agent == null) return false;
 
-            var client = CreateClient(agent.Url, shortTimeout: true);
-            var response = await client.GetAsync("/health");
+            var client = CreateClient(shortTimeout: true);
+            var response = await client.GetAsync($"{agent.Url.TrimEnd('/')}/health");
             return response.IsSuccessStatusCode;
         }
         catch
@@ -145,18 +146,13 @@ public class AgentProxyService : IAgentProxyService
 
     #region Helper Methods
 
-    private HttpClient CreateClient(string agentUrl, bool shortTimeout = false)
+    private HttpClient CreateClient(bool shortTimeout = false)
     {
-        var client = _httpClientFactory.CreateClient();
-        client.BaseAddress = new Uri(agentUrl.TrimEnd('/'));
+        var client = _httpClientFactory.CreateClient("AgentApi");
 
         if (shortTimeout)
         {
             client.Timeout = TimeSpan.FromSeconds(5);
-        }
-        else
-        {
-            client.Timeout = TimeSpan.FromSeconds(30);
         }
 
         return client;
@@ -171,7 +167,7 @@ public class AgentProxyService : IAgentProxyService
                 return default;
             }
 
-            return await response.Content.ReadFromJsonAsync<T>();
+            return await response.Content.ReadFromJsonAsync<T>(MinGoJsonDefaults.Options);
         }
 
         var error = await response.Content.ReadAsStringAsync();

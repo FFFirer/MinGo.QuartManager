@@ -29,8 +29,11 @@ builder.Services.AddDbContext<PlatformDbContext>(options =>
     options.UseNpgsql(connectionString)
            .AddInterceptors(new UtcAuditInterceptor()));
 
-// 3. 添加 HTTP Client
-builder.Services.AddHttpClient();
+// 3. 添加命名 HTTP Client（用于转发到 Agent）
+builder.Services.AddHttpClient("AgentApi", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 
 // 4. 添加服务
 builder.Services.AddScoped<AgentService>();

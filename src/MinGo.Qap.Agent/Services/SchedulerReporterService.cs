@@ -146,7 +146,7 @@ public class SchedulerReporterService
         string token,
         SchedulerReportRequest request)
     {
-        var client = _httpClientFactory.CreateClient();
+        var client = _httpClientFactory.CreateClient("PlatformApi");
         var url = $"{platformUrl.TrimEnd('/')}/api/agents/{agentId}/schedulers";
 
         for (int attempt = 0; attempt < MaxRetries; attempt++)
@@ -155,7 +155,7 @@ public class SchedulerReporterService
             {
                 var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
                 httpRequest.Headers.Add("X-Agent-Token", token);
-                httpRequest.Content = JsonContent.Create(request);
+                httpRequest.Content = JsonContent.Create(request, typeof(SchedulerReportRequest), options: MinGoJsonDefaults.Options);
 
                 var response = await client.SendAsync(httpRequest);
 

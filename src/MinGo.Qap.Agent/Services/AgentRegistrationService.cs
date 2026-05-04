@@ -138,8 +138,7 @@ public class AgentRegistrationService : IAgentRegistrationService
             StartedAt = DateTimeOffset.UtcNow  // 使用 UTC 时间
         };
 
-        var httpClient = _httpClientFactory.CreateClient();
-        httpClient.DefaultRequestHeaders.Add("X-Agent-Token", apiToken);
+        var httpClient = _httpClientFactory.CreateClient("PlatformApi");
 
         var maxAttempts = _config.Agent.RegistrationMaxAttempts;
         var retryDelay = TimeSpan.FromSeconds(_config.Agent.RegistrationRetryDelaySeconds);
@@ -154,11 +153,12 @@ public class AgentRegistrationService : IAgentRegistrationService
                 var response = await httpClient.PostAsJsonAsync(
                     $"{platformUrl.TrimEnd('/')}/api/agents",
                     request,
+                    MinGoJsonDefaults.Options,
                     cancellationToken);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var registrationResponse = await response.Content.ReadFromJsonAsync<RegisterAgentResponse>(cancellationToken);
+                    var registrationResponse = await response.Content.ReadFromJsonAsync<RegisterAgentResponse>(MinGoJsonDefaults.Options, cancellationToken);
                     if (registrationResponse == null)
                     {
                         throw new InvalidOperationException("Invalid registration response from platform");
@@ -245,8 +245,7 @@ public class AgentRegistrationService : IAgentRegistrationService
 
         try
         {
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.DefaultRequestHeaders.Add("X-Agent-Token", apiToken);
+            var httpClient = _httpClientFactory.CreateClient("PlatformApi");
 
             var response = await httpClient.DeleteAsync(
                 $"{registrationInfo.PlatformApiBaseUrl.TrimEnd('/')}/api/agents/{registrationInfo.AgentId}",

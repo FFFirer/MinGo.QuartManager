@@ -107,9 +107,9 @@ public class LogCollectionService : ILogCollectionService
             var reg = _registrationService.GetRegistrationInfo();
             if (reg != null && !string.IsNullOrEmpty(reg.PlatformApiBaseUrl))
             {
-                var client = _httpClientFactory.CreateClient();
+                var client = _httpClientFactory.CreateClient("PlatformApi");
                 var url = $"{reg.PlatformApiBaseUrl}/api/agents/{reg.AgentId}/logs";
-                var resp = await client.PostAsJsonAsync(url, toFlush);
+                var resp = await client.PostAsJsonAsync(url, toFlush, MinGoJsonDefaults.Options);
                 if (resp.IsSuccessStatusCode)
                 {
                     _logger.LogInformation("Uploaded {Count} logs to platform", toFlush.Count);

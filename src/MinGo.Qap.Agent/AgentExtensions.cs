@@ -41,8 +41,18 @@ public static class AgentExtensions
     /// </summary>
     private static void RegisterAgentServices(IServiceCollection services)
     {
-        // Register HTTP client for Platform communication
-        services.AddHttpClient();
+        // Register named HTTP client for Platform communication
+        services.AddHttpClient("PlatformApi", (sp, client) =>
+        {
+            var config = sp.GetRequiredService<IOptions<AgentConfig>>();
+            var platformUrl = config.Value.Platform.Url;
+            if (!string.IsNullOrEmpty(platformUrl))
+            {
+                client.BaseAddress = new Uri(platformUrl.TrimEnd('/'));
+            }
+            client.DefaultRequestHeaders.Add("X-Agent-Token", config.Value.Platform.ApiToken);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
 
         // 2.3.1: Register IAgentSchedulerAccessor with priority chain
         RegisterSchedulerAccessor(services);

@@ -284,15 +284,16 @@ public class HostedAgentService : BackgroundService
                 SchedulerSummaries = schedulerSummaries
             };
 
-            var httpClient = httpClientFactory.CreateClient();
+            var httpClient = httpClientFactory.CreateClient("PlatformApi");
             var response = await httpClient.PostAsJsonAsync(
                 $"{_registrationInfo.PlatformApiBaseUrl.TrimEnd('/')}/api/agents/{_registrationInfo.AgentId}/heartbeat",
                 heartbeatRequest,
+                MinGoJsonDefaults.Options,
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
-                var heartbeatResponse = await response.Content.ReadFromJsonAsync<AgentHeartbeatResponseV2>(cancellationToken);
+                var heartbeatResponse = await response.Content.ReadFromJsonAsync<AgentHeartbeatResponseV2>(MinGoJsonDefaults.Options, cancellationToken);
                 _logger.LogDebug("Heartbeat sent successfully to agent {AgentId}", _registrationInfo.AgentId);
                 _consecutiveHeartbeatFailures = 0;
                 _isRegistered = true;
