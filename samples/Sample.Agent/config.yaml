@@ -1,6 +1,7 @@
 agent:
-  clusterId: "my-cluster"
   heartbeatIntervalSeconds: 30
+  externalUrl: "https://localhost:5001"
+  port: 5001
 
 platform:
   url: "http://localhost:5256"

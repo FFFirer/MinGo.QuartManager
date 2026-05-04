@@ -73,8 +73,8 @@ const JobsPage: React.FC = () => {
   });
 
   // Batch operations across selected jobs
-  const batchMutation = useMutation(
-    async (action: 'trigger' | 'pause' | 'resume' | 'delete') => {
+  const batchMutation = useMutation({
+    mutationFn: async (action: 'trigger' | 'pause' | 'resume' | 'delete') => {
       const keys = Array.from(selectedKeys);
       if (keys.length === 0) return { total: 0, successes: 0, failures: 0 };
       const promises = keys.map((key) => {
@@ -90,29 +90,27 @@ const JobsPage: React.FC = () => {
       const failures = results.filter(r => r.status === 'rejected').length;
       return { total: keys.length, successes, failures };
     },
-    {
-      onSuccess: (payload: any) => {
-        const { total, successes, failures } = payload || { total: 0, successes: 0, failures: 0 };
-        if (total === 0) {
-          return;
-        }
-        if (failures === 0) {
-          toast.success(`Triggered ${successes} of ${total} jobs successfully`);
-        } else if (successes > 0) {
-          toast.warn(`Partial success: ${successes} of ${total} succeeded, ${failures} failed`);
-        } else {
-          toast.error(`Failed to perform operation on all ${total} jobs`);
-        }
-        queryClient.invalidateQueries({ queryKey: ['jobs', decodedSchedulerName] });
-        setSelectedKeys(new Set());
-        // Close potential delete confirmation dialog if open
-        setBatchDeleteDialogOpen(false);
-      },
-      onError: (err: any) => {
-        toast.error('Batch operation failed: ' + (err?.message ?? 'Unknown error'));
-      },
-    }
-  );
+    onSuccess: (payload: any) => {
+      const { total, successes, failures } = payload || { total: 0, successes: 0, failures: 0 };
+      if (total === 0) {
+        return;
+      }
+      if (failures === 0) {
+        toast.success(`Triggered ${successes} of ${total} jobs successfully`);
+      } else if (successes > 0) {
+        toast.warn(`Partial success: ${successes} of ${total} succeeded, ${failures} failed`);
+      } else {
+        toast.error(`Failed to perform operation on all ${total} jobs`);
+      }
+      queryClient.invalidateQueries({ queryKey: ['jobs', decodedSchedulerName] });
+      setSelectedKeys(new Set());
+      // Close potential delete confirmation dialog if open
+      setBatchDeleteDialogOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error('Batch operation failed: ' + (err?.message ?? 'Unknown error'));
+    },
+  });
 
   // Pagination helpers derived from current data set
   const totalItems = Array.isArray(jobs) ? jobs.length : 0;
