@@ -37,7 +37,7 @@ export function PlatformDashboardPage() {
   });
 
   const schedulers = useMemo(() => (results[0]?.data?.data ?? []) as SchedulerSummaryDto[], [results[0]?.data?.data]);
-  const agents = useMemo(() => (results[1]?.data?.data ?? []) as AgentSummaryDto[], [results[1]?.data?.data]);
+  const agents = useMemo(() => (results[1]?.data?.data?.items ?? []) as AgentSummaryDto[], [results[1]?.data?.data]);
 
   const isLoading = results.some(r => r.isLoading);
   const error = results.find(r => r.isError)?.error as Error | undefined;
