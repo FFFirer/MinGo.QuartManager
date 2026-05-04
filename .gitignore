@@ -38,3 +38,6 @@ appsettings.Development.json
 Thumbs.db
 
 nupkgs/
+
+# Temporary helper scripts
+export.bat
