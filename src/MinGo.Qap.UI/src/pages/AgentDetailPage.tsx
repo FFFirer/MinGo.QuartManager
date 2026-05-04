@@ -17,15 +17,13 @@ export const AgentDetailPage: React.FC = () => {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
 
-  const { data: apiResp, isLoading, isError, error, refetch } = useQuery<ApiResponse<AgentDetailDto>, Error>(
-    ['agent', agentId],
-    () => agentApi.get(agentId as string),
-    {
-      enabled: !!agentId,
-      refetchInterval: 30000, // 30 seconds auto-refresh
-      refetchOnWindowFocus: false,
-    }
-  );
+  const { data: apiResp, isLoading, isError, error, refetch } = useQuery<ApiResponse<AgentDetailDto>, Error>({
+    queryKey: ['agent', agentId],
+    queryFn: () => agentApi.get(agentId as string),
+    enabled: !!agentId,
+    refetchInterval: 30000, // 30 seconds auto-refresh
+    refetchOnWindowFocus: false,
+  });
 
   // Normalize to AgentDetailDto when API returns { data: AgentDetailDto }
   const agent: AgentDetailDto | undefined = apiResp?.data;
