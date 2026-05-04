@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MinGo.Qap.Platform.Data;
+using MinGo.Qap.Platform.NSwag;
 using MinGo.Qap.Platform.Services;
 using Serilog;
 
@@ -15,7 +16,10 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 // builder.Services.AddSwaggerGen(); // Add Swashbuckle package to enable
-builder.Services.AddOpenApiDocument();
+builder.Services.AddOpenApiDocument(config =>
+{
+    config.OperationProcessors.Add(new AgentTokenHeaderProcessor());
+});
 
 // 2. 添加数据库
 var connectionString = builder.Configuration.GetConnectionString("PlatformDb") 
