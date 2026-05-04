@@ -13,6 +13,7 @@ public class DeferredSchedulerAccessor : IAgentSchedulerAccessor
     private IReadOnlyDictionary<string, IScheduler>? _cachedSchedulers;
     private int _discoveryAttempts;
     private readonly ConcurrentDictionary<string, IScheduler> _emptyDict = new();
+    private readonly ILogger _logger;
 
     // 重试配置
     private const int MaxAttempts = 10;
@@ -21,6 +22,7 @@ public class DeferredSchedulerAccessor : IAgentSchedulerAccessor
     public DeferredSchedulerAccessor(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _logger = serviceProvider.GetService<ILogger<DeferredSchedulerAccessor>>() ?? throw new InvalidOperationException("Logger not available");
     }
 
     /// <inheritdoc />
@@ -72,26 +74,34 @@ public class DeferredSchedulerAccessor : IAgentSchedulerAccessor
 
         try
         {
-            // 尝试获取多个 Scheduler
-            var schedulers = _serviceProvider.GetServices<IScheduler>()?.ToList();
-            if (schedulers is { Count: > 0 })
+            var schedulerFactory = _serviceProvider.GetService<ISchedulerFactory>();
+            var schedulers = schedulerFactory?.GetAllSchedulers().GetAwaiter().GetResult();
+            if (schedulers != null && schedulers.Count > 0)
             {
-                return schedulers.ToDictionary(s => s.SchedulerName, s => s);
+                Dictionary<string, IScheduler> schedulerIndex = schedulers.ToDictionary(x => x.SchedulerName, x => x);
+                return schedulerIndex;
             }
+            // // 尝试获取多个 Scheduler
+            // var schedulers = _serviceProvider.GetServices<IScheduler>()?.ToList();
+            // if (schedulers is { Count: > 0 })
+            // {
+            //     return schedulers.ToDictionary(s => s.SchedulerName, s => s);
+            // }
 
-            // 尝试获取单个 Scheduler
-            var singleScheduler = _serviceProvider.GetService<IScheduler>();
-            if (singleScheduler != null)
-            {
-                return new Dictionary<string, IScheduler>
-                {
-                    [singleScheduler.SchedulerName] = singleScheduler
-                };
-            }
+            // // 尝试获取单个 Scheduler
+            // var singleScheduler = _serviceProvider.GetService<IScheduler>();
+            // if (singleScheduler != null)
+            // {
+            //     return new Dictionary<string, IScheduler>
+            //     {
+            //         [singleScheduler.SchedulerName] = singleScheduler
+            //     };
+            // }
         }
         catch (Exception ex)
         {
             // 发现失败，将在下次调用时重试
+            _logger.LogWarning(ex, "Attempt {Attempt} to discover schedulers failed", _discoveryAttempts);
         }
 
         // 如果需要重试，短暂等待

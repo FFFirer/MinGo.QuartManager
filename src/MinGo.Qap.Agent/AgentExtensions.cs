@@ -25,7 +25,7 @@ public static class AgentExtensions
     public static T AddMinGoAgent<T>(this T builder) where T : IHostApplicationBuilder
     {
         builder.Configuration.AddYamlFile("config.yaml", optional: true);
-        
+
         // Register IOptions<AgentConfig> with binding, defaults, and validation
         builder.Services.ConfigureOptions<ConfigureAgentConfigOptions>();
         builder.Services.ConfigureOptions<PostConfigureAgentConfigOptions>();
@@ -33,7 +33,7 @@ public static class AgentExtensions
 
         RegisterAgentServices(builder.Services);
 
-        return builder;   
+        return builder;
     }
 
     /// <summary>
@@ -86,9 +86,9 @@ public static class AgentExtensions
                 manifest.Jobs.Add(new JobTypeInfoDto
                 {
                     Key = job.JobKey,
-                    JobTypeFullName = job.JobTypeFullName,
+                    JobTypeFullName = job.JobTypeFullName ?? string.Empty,
                     Description = job.Description ?? job.JobTypeFullName ?? string.Empty,
-                    Parameters = job.Parameters
+                    Parameters = job.Parameters ?? []
                 });
             }
 
@@ -155,8 +155,8 @@ public static class AgentExtensions
         services.AddSingleton<IAgentSchedulerAccessor>(sp =>
         {
             // 优先级 1：宿主显式注册了 IAgentSchedulerAccessor
-            var explicitAccessor = sp.GetService<IAgentSchedulerAccessor>();
-            if (explicitAccessor != null) return explicitAccessor;
+            // var explicitAccessor = sp.GetService<IAgentSchedulerAccessor>();
+            // if (explicitAccessor != null) return explicitAccessor;
 
             // 优先级 2：宿主有 IScheduler 集合（多 Scheduler 场景）
             var schedulers = sp.GetServices<IScheduler>()?.ToList();
@@ -183,15 +183,11 @@ public static class AgentExtensions
             {
                 try
                 {
-                    var scheduler = schedulerFactory.GetScheduler().GetAwaiter().GetResult();
-                    if (scheduler != null)
+                    var allSchedulers = schedulerFactory.GetAllSchedulers().GetAwaiter().GetResult();
+                    if (allSchedulers.Count > 0)
                     {
-                        var schedulerName = scheduler.SchedulerName ?? "default";
-                        return new AgentSchedulerAccessor(
-                            new Dictionary<string, IScheduler>
-                            {
-                                [schedulerName] = scheduler
-                            });
+                        Dictionary<string, IScheduler> schedulerIndex = allSchedulers.ToDictionary(x => x.SchedulerName, x => x);
+                        return new AgentSchedulerAccessor(schedulerIndex);
                     }
                 }
                 catch
