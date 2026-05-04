@@ -167,6 +167,29 @@ public static class AgentExtensions
                     });
             }
 
+            // 优先级 3.5：宿主使用 ISchedulerFactory（官方 AddQuartz DI 模式）
+            var schedulerFactory = sp.GetService<ISchedulerFactory>();
+            if (schedulerFactory != null)
+            {
+                try
+                {
+                    var scheduler = schedulerFactory.GetScheduler().GetAwaiter().GetResult();
+                    if (scheduler != null)
+                    {
+                        var schedulerName = scheduler.SchedulerName ?? "default";
+                        return new AgentSchedulerAccessor(
+                            new Dictionary<string, IScheduler>
+                            {
+                                [schedulerName] = scheduler
+                            });
+                    }
+                }
+                catch
+                {
+                    // Scheduler 尚未就绪，降级到延迟发现
+                }
+            }
+
             // 优先级 4：延迟发现（宿主 Scheduler 初始化可能晚于 Agent）
             return new DeferredSchedulerAccessor(sp);
         });

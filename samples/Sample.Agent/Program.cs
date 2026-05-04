@@ -1,11 +1,7 @@
 using MinGo.Qap.Agent;
 using MinGo.Sample.Agent.Jobs;
 using Quartz;
-using Quartz.Impl;
-using Quartz.Simpl;
-using Quartz.Spi;
 using Serilog;
-using System.Collections.Specialized;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,34 +19,41 @@ builder.Services.AddSwaggerGen();
 // Add health checks
 builder.Services.AddHealthChecks();
 
-// Configure Quartz with RAMJobStore using simple approach
-var properties = new NameValueCollection
+// Configure Quartz with RAMJobStore using official Microsoft DI integration
+builder.Services.AddQuartz(q =>
 {
-    ["quartz.scheduler.instanceName"] = "SampleAgentScheduler",
-    ["quartz.scheduler.instanceId"] = "AUTO",
-    ["quartz.jobStore.type"] = typeof(RAMJobStore).FullName,
-    ["quartz.threadPool.threadCount"] = "5"
-};
+    q.SchedulerName = "SampleAgentScheduler";
+    q.SchedulerId = "AUTO";
+    q.UseDefaultThreadPool(tp => tp.MaxConcurrency = 5);
+    q.UseInMemoryStore();
+
+    // Schedule HelloJob to run every 10 seconds
+    q.ScheduleJob<HelloJob>(trigger => trigger
+        .WithIdentity("HelloJob-trigger", "sample")
+        .StartNow()
+        .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever()));
+
+    // Schedule ScheduledJob to run every 60 seconds (health check)
+    q.ScheduleJob<ScheduledJob>(trigger => trigger
+        .WithIdentity("ScheduledJob-trigger", "sample")
+        .StartNow()
+        .WithSimpleSchedule(x => x.WithIntervalInSeconds(60).RepeatForever()));
+
+    // Register ManualTriggerJob as durable job (no trigger, triggered via API)
+    q.AddJob<ManualTriggerJob>(j => j
+        .WithIdentity("ManualTriggerJob", "sample")
+        .StoreDurably());
+});
+
+// Add Quartz hosted service for scheduler lifecycle management
+builder.Services.AddQuartzHostedService(options =>
+{
+    options.WaitForJobsToComplete = true;
+});
 
 // Add MinGo Agent services (includes LogCollection, JobDiscovery, Registration)
 // This uses the standard IConfiguration pipeline with config.yaml as YAML source.
-// The YAML file is registered automatically as an optional configuration source.
 builder.AddMinGoAgent();
-
-// Register sample jobs for DI resolution
-builder.Services.AddTransient<HelloJob>();
-builder.Services.AddTransient<ScheduledJob>();
-builder.Services.AddTransient<ManualTriggerJob>();
-
-builder.Services.AddSingleton<IScheduler>(sp =>
-{
-    var factory = new StdSchedulerFactory(properties);
-    var scheduler = factory.GetScheduler().GetAwaiter().GetResult();
-    scheduler.JobFactory = new DIJobFactory(sp);
-    scheduler.Start();
-    Log.Information("Quartz Scheduler started with RAMJobStore");
-    return scheduler;
-});
 
 var app = builder.Build();
 
@@ -67,59 +70,6 @@ app.MapMinGoAgentApi();
 // Map health check endpoint
 app.MapHealthChecks("/health");
 
-// Get scheduler and schedule sample jobs
-var scheduler = app.Services.GetRequiredService<IScheduler>();
-
-// Schedule HelloJob to run every 10 seconds
-var helloJob = JobBuilder.Create<HelloJob>()
-    .WithIdentity("HelloJob", "sample")
-    .Build();
-
-var helloTrigger = TriggerBuilder.Create()
-    .WithIdentity("HelloJob-trigger", "sample")
-    .StartNow()
-    .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever())
-    .Build();
-
-// await scheduler.ScheduleJob(helloJob, helloTrigger);
-
-// Schedule ScheduledJob to run every 60 seconds (health check)
-var scheduledJob = JobBuilder.Create<ScheduledJob>()
-    .WithIdentity("ScheduledJob", "sample")
-    .Build();
-
-var scheduledTrigger = TriggerBuilder.Create()
-    .WithIdentity("ScheduledJob-trigger", "sample")
-    .StartNow()
-    .WithSimpleSchedule(x => x.WithIntervalInSeconds(60).RepeatForever())
-    .Build();
-
-// await scheduler.ScheduleJob(scheduledJob, scheduledTrigger);
-
-// Register ManualTriggerJob as durable job
-var manualJob = JobBuilder.Create<ManualTriggerJob>()
-    .WithIdentity("ManualTriggerJob", "sample")
-    .StoreDurably()
-    .Build();
-
-await scheduler.AddJob(manualJob, replace: true);
-
-Log.Information("Sample jobs registered successfully");
+Log.Information("Quartz Scheduler configured with RAMJobStore via AddQuartz");
 
 app.Run();
-
-/// <summary>
-/// Simple DI-aware job factory that resolves jobs from the service provider.
-/// </summary>
-public class DIJobFactory : IJobFactory
-{
-    private readonly IServiceProvider _serviceProvider;
-    public DIJobFactory(IServiceProvider serviceProvider) => _serviceProvider = serviceProvider;
-
-    public IJob NewJob(TriggerFiredBundle bundle, IScheduler scheduler)
-    {
-        return (IJob)_serviceProvider.GetRequiredService(bundle.JobDetail.JobType);
-    }
-
-    public void ReturnJob(IJob job) { }
-}
