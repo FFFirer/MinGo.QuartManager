@@ -20,14 +20,15 @@ export default function StatusBar() {
 
   const { data: agents, dataUpdatedAt: agentsUpdatedAt } = useQuery({
     queryKey: ['statusbar-agents'],
-    queryFn: () => agentApi.getAll(),
+    queryFn: () => agentApi.getAll(1, 1000),
     refetchInterval: 30000,
   });
 
   const healthStatus: HealthStatus = useMemo(() => {
-    if (!agents?.data) return 'healthy';
-    const offlineAgents = agents.data.filter(a => a.status === 'Offline' || a.status === 'Warning').length;
-    const totalAgents = agents.data.length;
+    const agentList = agents?.data?.items ?? [];
+    if (agentList.length === 0) return 'healthy';
+    const offlineAgents = agentList.filter(a => a.status === 'Offline' || a.status === 'Warning').length;
+    const totalAgents = agentList.length;
     if (offlineAgents === 0) return 'healthy';
     if (offlineAgents < totalAgents) return 'degraded';
     return 'down';
@@ -45,7 +46,7 @@ export default function StatusBar() {
       </div>
       <div className="flex items-center gap-3">
         <span>
-          Schedulers: {schedulers?.data?.length ?? '-'} | Agents: {agents?.data?.length ?? '-'}
+          Schedulers: {schedulers?.data?.length ?? '-'} | Agents: {agents?.data?.items?.length ?? '-'}
         </span>
         <span className="flex items-center gap-1">
           <RefreshCw size={10} />

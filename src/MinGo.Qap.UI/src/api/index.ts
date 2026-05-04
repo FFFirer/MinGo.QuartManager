@@ -14,7 +14,8 @@ import type {
   SchedulerAgentDto,
   SchedulerReportRequest,
   RegisterAgentRequest,
-  RegisterAgentResponse
+  RegisterAgentResponse,
+  PagedResponse
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/';
@@ -38,8 +39,10 @@ api.interceptors.response.use(
 
 // Agent APIs
 export const agentApi = {
-  getAll: () =>
-    api.get<ApiResponse<AgentSummaryDto[]>>('/api/agents').then(r => r.data),
+  getAll: (page?: number, pageSize?: number) =>
+    api.get<ApiResponse<PagedResponse<AgentSummaryDto>>>('/api/agents', {
+      params: { page, pageSize }
+    }).then(r => r.data),
 
   get: (agentId: string) =>
     api.get<ApiResponse<AgentDetailDto>>(`/api/agents/${agentId}`).then(r => r.data),

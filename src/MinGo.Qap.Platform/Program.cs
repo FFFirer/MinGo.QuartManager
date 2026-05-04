@@ -15,6 +15,7 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 // builder.Services.AddSwaggerGen(); // Add Swashbuckle package to enable
+builder.Services.AddOpenApiDocument();
 
 // 2. 添加数据库
 var connectionString = builder.Configuration.GetConnectionString("PlatformDb") 
@@ -39,11 +40,11 @@ var app = builder.Build();
 
 // 6. 配置 HTTP 管道
 // Swagger disabled temporarily (package unavailable in offline NuGet cache)
-// if (app.Environment.IsDevelopment())
-// {
-//     app.UseSwagger();
-//     app.UseSwaggerUI();
-// }
+if (app.Environment.IsDevelopment())
+{
+    app.UseOpenApi();
+    app.UseSwaggerUi();
+}
 
 // app.UseHttpsRedirection();
 app.UseAuthorization();

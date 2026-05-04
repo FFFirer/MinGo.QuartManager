@@ -153,7 +153,7 @@ public class AgentService
     }
 
     /// <summary>
-    /// 获取 Agent 列表
+    /// 获取全部 Agent 列表（Dashboard 等场景使用）
     /// </summary>
     public async Task<List<AgentSummaryDto>> GetAllAsync()
     {
@@ -164,6 +164,37 @@ public class AgentService
             .ToListAsync();
 
         return agents.Select(MapToSummary).ToList();
+    }
+
+    /// <summary>
+    /// 获取 Agent 列表（带分页）
+    /// </summary>
+    public async Task<PagedResponse<AgentSummaryDto>> GetPagedAsync(int page, int pageSize)
+    {
+        // 总数用于分页元数据
+        var total = await _dbContext.Agents
+            .Where(a => a.DeletedAt == null)
+            .CountAsync();
+
+        var skip = (page - 1) * pageSize;
+
+        var agents = await _dbContext.Agents
+            .Include(a => a.AgentSchedulers)
+            .Where(a => a.DeletedAt == null)
+            .OrderByDescending(a => a.UpdatedAt)
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = agents.Select(MapToSummary).ToList();
+
+        return new PagedResponse<AgentSummaryDto>
+        {
+            Items = items,
+            Total = total,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     /// <summary>

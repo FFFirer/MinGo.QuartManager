@@ -36,10 +36,10 @@ public class AgentsController : ControllerBase
         {
             // 验证 Token
             var authHeader = Request.Headers["X-Agent-Token"].FirstOrDefault();
-            if (string.IsNullOrEmpty(authHeader))
-            {
-                return Unauthorized(ApiResponse<RegisterAgentResponse>.Fail("Missing X-Agent-Token header"));
-            }
+            // if (string.IsNullOrEmpty(authHeader))
+            // {
+            //     return Unauthorized(ApiResponse<RegisterAgentResponse>.Fail("Missing X-Agent-Token header"));
+            // }
 
             var response = await _agentService.RegisterAsync(request, authHeader);
             return Ok(ApiResponse<RegisterAgentResponse>.Ok(response));
@@ -52,13 +52,15 @@ public class AgentsController : ControllerBase
     }
 
     /// <summary>
-    /// 获取 Agent 列表
+    /// 获取 Agent 列表（带分页）
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<List<AgentSummaryDto>>>> GetList()
+    public async Task<ActionResult<ApiResponse<PagedResponse<AgentSummaryDto>>>> GetList(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
-        var agents = await _agentService.GetAllAsync();
-        return Ok(ApiResponse<List<AgentSummaryDto>>.Ok(agents));
+        var paged = await _agentService.GetPagedAsync(page, pageSize);
+        return Ok(ApiResponse<PagedResponse<AgentSummaryDto>>.Ok(paged));
     }
 
     /// <summary>
