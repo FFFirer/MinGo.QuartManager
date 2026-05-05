@@ -12,7 +12,7 @@ function NavItem({ to, icon, label, active, collapsed, isActive }: {
   return (
     <Link
       to={to}
-      className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors group ${
+      className={`flex items-center gap-3 ${collapsed ? 'px-2' : 'px-3'} py-2 rounded-md transition-colors group ${
         active ?? isActive(to) ? 'bg-slate-800 text-slate-50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-50'
       }`}
       title={collapsed ? label : undefined}
@@ -39,7 +39,7 @@ export default function Sidebar() {
   return (
     <aside
       className={`bg-slate-950 border-r border-slate-800 flex flex-col transition-all duration-200 ${
-        collapsed ? 'w-16' : 'w-64'
+        collapsed ? 'w-16 overflow-hidden' : 'w-64'
       }`}
     >
       {/* Brand */}
@@ -63,7 +63,7 @@ export default function Sidebar() {
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 overflow-y-auto">
+      <nav className={`flex-1 p-3 ${collapsed ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
         <ul className="space-y-1">
           <li>
             <NavItem to="/" icon={<LayoutDashboard size={18} />} label="Dashboard" collapsed={collapsed} isActive={checkActive} />

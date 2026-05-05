@@ -47,10 +47,10 @@ function KeyboardShortcuts() {
 
 function AppLayout() {
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col">
+    <div className="h-screen bg-slate-900 flex flex-col overflow-hidden">
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className={`flex-1 overflow-auto transition-all duration-200`}>
+        <main className="flex-1 min-w-0 overflow-auto transition-all duration-200">
           <Routes>
             <Route path="/" element={<PlatformDashboardPage />} />
             <Route path="/agents" element={<AgentsPage />} />

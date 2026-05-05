@@ -34,12 +34,18 @@ builder.Services.AddQuartz(q =>
     //     .WithIdentity("HelloJob-trigger", "sample")
     //     .StartNow()
     //     .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever()));
+    q.AddJob<HelloJob>(j => j
+        .WithIdentity("HelloJob", "sample")
+        .StoreDurably());
 
     // Schedule ScheduledJob to run every 60 seconds (health check)
     // q.ScheduleJob<ScheduledJob>(trigger => trigger
     //     .WithIdentity("ScheduledJob-trigger", "sample")
     //     .StartNow()
     //     .WithSimpleSchedule(x => x.WithIntervalInSeconds(60).RepeatForever()));
+    q.AddJob<ScheduledJob>(j => j
+        .WithIdentity("ScheduledJob", "sample")
+        .StoreDurably());
 
     // Register ManualTriggerJob as durable job (no trigger, triggered via API)
     q.AddJob<ManualTriggerJob>(j => j
