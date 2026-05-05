@@ -90,9 +90,6 @@ export default function Sidebar() {
           {collapsed ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
           {!collapsed && <span className="text-xs">Collapse</span>}
         </button>
-        {!collapsed && (
-          <div className="text-center text-xs text-slate-500 mt-2">v2.0.0</div>
-        )}
       </div>
     </aside>
   );

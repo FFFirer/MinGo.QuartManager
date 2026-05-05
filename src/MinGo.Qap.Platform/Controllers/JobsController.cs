@@ -25,7 +25,7 @@ public class JobsController : ControllerBase
     /// 获取 Job 列表
     /// </summary>
     [HttpGet]
-    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
+    // [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<PagedResponse<JobSummaryDto>>>> GetList(
         string schedulerName,
         [FromQuery] int page = 1,

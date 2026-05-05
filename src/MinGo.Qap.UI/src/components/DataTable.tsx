@@ -40,10 +40,10 @@ function DataTable<T extends Record<string, any>>({
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const tanstackColumns = useMemo(() => {
-    return columns.map((col) => {
+    return columns.map((col, index) => {
       const isFnAccessor = typeof col.accessor === 'function';
       const keyAccessor = !isFnAccessor ? col.accessor : undefined;
-      const id = keyAccessor ? String(keyAccessor) : undefined;
+      const id = keyAccessor ? String(keyAccessor) : `col_${index}`;
 
       return {
         id,

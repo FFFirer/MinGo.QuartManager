@@ -30,16 +30,24 @@ builder.Services.AddQuartz(q =>
     q.UseInMemoryStore();
 
     // Schedule HelloJob to run every 10 seconds
-    // q.ScheduleJob<HelloJob>(trigger => trigger
-    //     .WithIdentity("HelloJob-trigger", "sample")
-    //     .StartNow()
-    //     .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever()));
+    q.ScheduleJob<HelloJob>(trigger => trigger
+        .WithIdentity("HelloJob-trigger", "sample")
+        .StartNow()
+        .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever()),
+        job => job.UsingJobData(new()
+        {
+            ["message"] = "Test"
+        }));
 
     // Schedule ScheduledJob to run every 60 seconds (health check)
-    // q.ScheduleJob<ScheduledJob>(trigger => trigger
-    //     .WithIdentity("ScheduledJob-trigger", "sample")
-    //     .StartNow()
-    //     .WithSimpleSchedule(x => x.WithIntervalInSeconds(60).RepeatForever()));
+    q.ScheduleJob<ScheduledJob>(trigger => trigger
+        .WithIdentity("ScheduledJob-trigger", "sample")
+        .StartNow()
+        .WithSimpleSchedule(x => x.WithIntervalInSeconds(60).RepeatForever()),
+        job => job.UsingJobData(new()
+        {
+            ["simulateDelay"] = 100,
+        }));
 
     // Register ManualTriggerJob as durable job (no trigger, triggered via API)
     q.AddJob<ManualTriggerJob>(j => j

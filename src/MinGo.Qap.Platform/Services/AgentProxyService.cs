@@ -59,7 +59,7 @@ public class AgentProxyService : IAgentProxyService
         }
 
         var client = CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Get, $"{agent.Url.TrimEnd('/')}/api/{path}");
+        var request = new HttpRequestMessage(HttpMethod.Get, $"{agent.Url.TrimEnd('/')}/api/agent/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
 
         var response = await client.SendAsync(request);
@@ -75,7 +75,7 @@ public class AgentProxyService : IAgentProxyService
         }
 
         var client = CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{agent.Url.TrimEnd('/')}/api/{path}");
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{agent.Url.TrimEnd('/')}/api/agent/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
         request.Content = JsonContent.Create(body, typeof(object), options: MinGoJsonDefaults.Options);
 
@@ -92,7 +92,7 @@ public class AgentProxyService : IAgentProxyService
         }
 
         var client = CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Put, $"{agent.Url.TrimEnd('/')}/api/{path}");
+        var request = new HttpRequestMessage(HttpMethod.Put, $"{agent.Url.TrimEnd('/')}/api/agent/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
         request.Content = JsonContent.Create(body, typeof(object), options: MinGoJsonDefaults.Options);
 
@@ -109,7 +109,7 @@ public class AgentProxyService : IAgentProxyService
         }
 
         var client = CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Delete, $"{agent.Url.TrimEnd('/')}/api/{path}");
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"{agent.Url.TrimEnd('/')}/api/agent/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
 
         var response = await client.SendAsync(request);
