@@ -75,7 +75,6 @@ public static class AgentApiExtensions
            .WithName("GetManifest");
     }
 
-    [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。由 Platform 转发时设置。")]
     private static async Task<IResult> GetSchedulersHandler(
         [FromServices] IQuartzService quartz,
         [FromServices] IAgentSchedulerAccessor accessor,

@@ -12,4 +12,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MinGo.Qap.Shared\MinGo.Qap.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

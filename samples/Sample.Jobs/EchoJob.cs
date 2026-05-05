@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using MinGo.Qap.Shared.Attributes;
 using Quartz;
 
 namespace Sample.Jobs;
@@ -14,6 +15,12 @@ public class EchoJob : IJob
     {
         _logger = logger;
     }
+
+    /// <summary>
+    /// 要回显的消息内容
+    /// </summary>
+    [JobParameter("message", Required = false, DefaultValue = "Hello, Quartz!", Label = "Message")]
+    public string Message { get; set; } = "Hello, Quartz!";
 
     public async Task Execute(IJobExecutionContext context)
     {

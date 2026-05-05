@@ -180,7 +180,7 @@ const CreateJobPanel: React.FC<CreateJobPanelProps> = ({ schedulerName, isOpen, 
 
   // Basic UI: reuse the same structure as modal, with a top template selector
   return (
-    <SlidePanel isOpen={isOpen} onClose={onClose} title="Create Job" width="w-96" footer={
+    <SlidePanel isOpen={isOpen} onClose={onClose} title="Create Job" width="w-full max-w-2xl" footer={
       <div className="flex justify-between w-full">
         <button onClick={handleBack} className="btn-secondary">Back</button>
         {step < 4 ? (

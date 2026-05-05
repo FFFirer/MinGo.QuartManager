@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using MinGo.Qap.Shared.Attributes;
 using Quartz;
 
 namespace Sample.Jobs;
@@ -14,6 +15,12 @@ public class DelayJob : IJob
     {
         _logger = logger;
     }
+
+    /// <summary>
+    /// 延迟秒数
+    /// </summary>
+    [JobParameter("delaySeconds", Required = false, DefaultValue = 5, Label = "Delay Seconds")]
+    public int DelaySeconds { get; set; } = 5;
 
     public async Task Execute(IJobExecutionContext context)
     {
