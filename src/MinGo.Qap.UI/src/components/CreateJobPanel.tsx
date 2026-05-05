@@ -44,7 +44,7 @@ const CreateJobPanel: React.FC<CreateJobPanelProps> = ({ schedulerName, isOpen, 
     queryFn: async () => {
       const resp = await jobApi.getAll(schedulerName, 1, 1000);
       if (!resp.success) throw new Error(resp.errorMessage);
-      return resp.data || [];
+      return resp.data?.items ?? [];
     },
     enabled: !!schedulerName,
   });

@@ -140,8 +140,8 @@ public static class AgentApiExtensions
             Group = request.Query["group"].FirstOrDefault(),
             Keyword = request.Query["keyword"].FirstOrDefault()
         };
-        var jobs = await quartz.GetJobsAsync(schedulerName, query);
-        return Results.Ok(ApiResponse<List<JobSummaryDto>>.Ok(jobs));
+        var result = await quartz.GetJobsAsync(schedulerName, query);
+        return Results.Ok(ApiResponse<PagedResponse<JobSummaryDto>>.Ok(result));
     }
 
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。由 Platform 转发时设置。")]

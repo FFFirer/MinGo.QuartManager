@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Play, Pause, Trash2, Plus } from 'lucide-react';
+import { Play, Pause, Trash2, Plus, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { jobApi } from '../api';
 import CreateJobPanel from '../components/CreateJobPanel';
@@ -26,15 +26,19 @@ const JobsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState<number>(20);
   const decodedSchedulerName = schedulerName ? decodeURIComponent(schedulerName) : '';
 
-  const { data: jobs, isLoading, error } = useQuery({
+  const { data: jobsResponse, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['jobs', decodedSchedulerName, page, pageSize],
     queryFn: async () => {
       const response = await jobApi.getAll(decodedSchedulerName, page, pageSize);
       if (!response.success) throw new Error(response.errorMessage);
-      return response.data || [];
+      return response.data;
     },
     enabled: !!decodedSchedulerName,
   });
+
+  const jobs = jobsResponse?.items ?? [];
+  const totalItems = jobsResponse?.total ?? 0;
+  const totalPages = jobsResponse?.totalPages ?? 1;
 
   const triggerJob = useMutation({
     mutationFn: (jobKey: string) => jobApi.trigger(decodedSchedulerName, jobKey),
@@ -111,10 +115,6 @@ const JobsPage: React.FC = () => {
       toast.error('Batch operation failed: ' + (err?.message ?? 'Unknown error'));
     },
   });
-
-  // Pagination helpers derived from current data set
-  const totalItems = Array.isArray(jobs) ? jobs.length : 0;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
@@ -254,13 +254,23 @@ const JobsPage: React.FC = () => {
           { label: 'Jobs', active: true }
         ]}
         actions={
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            <Plus size={16} />
-            Create Job
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => refetch()}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+              title="Refresh Jobs"
+            >
+              <RefreshCw size={16} className={isFetching ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <Plus size={16} />
+              Create Job
+            </button>
+          </div>
         }
       />
 

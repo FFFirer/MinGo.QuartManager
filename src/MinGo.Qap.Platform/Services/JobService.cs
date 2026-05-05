@@ -14,7 +14,7 @@ public interface IJobService
 {
     Task<JobDefinitionDto> CreateAsync(string schedulerName, CreateJobRequest request);
     Task<JobDefinitionDto?> GetAsync(string schedulerName, string jobKey);
-    Task<List<JobSummaryDto>> GetBySchedulerAsync(string schedulerName, JobQuery query);
+    Task<PagedResponse<JobSummaryDto>> GetBySchedulerAsync(string schedulerName, JobQuery query);
     Task UpdateAsync(string schedulerName, string jobKey, UpdateJobRequest request);
     Task DeleteAsync(string schedulerName, string jobKey);
     Task TriggerAsync(string schedulerName, string jobKey);
@@ -121,15 +121,21 @@ public class JobService : IJobService
         }
     }
 
-    public async Task<List<JobSummaryDto>> GetBySchedulerAsync(string schedulerName, JobQuery query)
+    public async Task<PagedResponse<JobSummaryDto>> GetBySchedulerAsync(string schedulerName, JobQuery query)
     {
         // 实时从 Agent 获取
         try
         {
-            var jobs = await _agentProxy.GetAsync<List<JobSummaryDto>>(schedulerName,
+            var result = await _agentProxy.GetAsync<PagedResponse<JobSummaryDto>>(schedulerName,
                 $"jobs?page={query.Page}&pageSize={query.PageSize}&status={query.Status}&group={query.Group}&keyword={query.Keyword}");
 
-            return jobs ?? new List<JobSummaryDto>();
+            return result ?? new PagedResponse<JobSummaryDto>
+            {
+                Items = new List<JobSummaryDto>(),
+                Total = 0,
+                Page = query.Page,
+                PageSize = query.PageSize
+            };
         }
         catch (AgentException)
         {
@@ -148,17 +154,25 @@ public class JobService : IJobService
                 dbQuery = dbQuery.Where(j => j.JobKey.Contains(query.Keyword));
             }
 
+            var total = await dbQuery.CountAsync();
+
             var jobDefs = await dbQuery
                 .Skip((query.Page - 1) * query.PageSize)
                 .Take(query.PageSize)
                 .ToListAsync();
 
-            return jobDefs.Select(j => new JobSummaryDto
+            return new PagedResponse<JobSummaryDto>
             {
-                JobKey = j.JobKey,
-                JobType = j.JobType,
-                Status = j.Status.ToString()
-            }).ToList();
+                Items = jobDefs.Select(j => new JobSummaryDto
+                {
+                    JobKey = j.JobKey,
+                    JobType = j.JobType,
+                    Status = j.Status.ToString()
+                }).ToList(),
+                Total = total,
+                Page = query.Page,
+                PageSize = query.PageSize
+            };
         }
     }
 

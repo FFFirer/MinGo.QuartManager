@@ -78,7 +78,7 @@ export const schedulerApi = {
 // Job APIs (now using schedulerName instead of clusterId)
 export const jobApi = {
   getAll: (schedulerName: string, page = 1, pageSize = 20, status?: string, group?: string, keyword?: string) =>
-    api.get<ApiResponse<JobSummaryDto[]>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs`, {
+    api.get<ApiResponse<PagedResponse<JobSummaryDto>>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs`, {
       params: { page, pageSize, status, group, keyword }
     }).then(r => r.data),
 

@@ -26,7 +26,7 @@ public class JobsController : ControllerBase
     /// </summary>
     [HttpGet]
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
-    public async Task<ActionResult<ApiResponse<List<JobSummaryDto>>>> GetList(
+    public async Task<ActionResult<ApiResponse<PagedResponse<JobSummaryDto>>>> GetList(
         string schedulerName,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
@@ -43,8 +43,8 @@ public class JobsController : ControllerBase
             Keyword = keyword
         };
 
-        var jobs = await _jobService.GetBySchedulerAsync(schedulerName, query);
-        return Ok(ApiResponse<List<JobSummaryDto>>.Ok(jobs));
+        var result = await _jobService.GetBySchedulerAsync(schedulerName, query);
+        return Ok(ApiResponse<PagedResponse<JobSummaryDto>>.Ok(result));
     }
 
     /// <summary>

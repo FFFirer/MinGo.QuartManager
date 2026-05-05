@@ -17,7 +17,7 @@ public interface IQuartzService
     Task PauseJobAsync(string schedulerName, string jobKey);
     Task ResumeJobAsync(string schedulerName, string jobKey);
     Task<JobDetailDto?> GetJobAsync(string schedulerName, string jobKey);
-    Task<List<JobSummaryDto>> GetJobsAsync(string schedulerName, JobQuery query);
+    Task<PagedResponse<JobSummaryDto>> GetJobsAsync(string schedulerName, JobQuery query);
     Task<SchedulerStateDto> GetSchedulerStateAsync(string schedulerName);
     Task<List<string>> GetSchedulerNamesAsync();
 }
@@ -255,7 +255,7 @@ public class QuartzService : IQuartzService
         };
     }
 
-    public async Task<List<JobSummaryDto>> GetJobsAsync(string schedulerName, JobQuery query)
+    public async Task<PagedResponse<JobSummaryDto>> GetJobsAsync(string schedulerName, JobQuery query)
     {
         var scheduler = GetScheduler(schedulerName);
         var result = new List<JobSummaryDto>();
@@ -319,11 +319,19 @@ public class QuartzService : IQuartzService
             }
         }
 
-        // 分页
-        return result
+        var total = result.Count;
+        var items = result
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToList();
+
+        return new PagedResponse<JobSummaryDto>
+        {
+            Items = items,
+            Total = total,
+            Page = query.Page,
+            PageSize = query.PageSize
+        };
     }
 
     public async Task<SchedulerStateDto> GetSchedulerStateAsync(string schedulerName)

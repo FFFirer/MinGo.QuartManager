@@ -48,7 +48,7 @@ const GlobalSearch: React.FC = () => {
     queryFn: async () => {
       if (!schedulers || schedulers.length === 0) return [];
       const promises = schedulers.map(s =>
-        jobApi.getAll(s.schedulerName, 1, 20).then(r => ({ schedulerName: s.schedulerName, jobs: r.data ?? [] }))
+        jobApi.getAll(s.schedulerName, 1, 20).then(r => ({ schedulerName: s.schedulerName, jobs: r.data?.items ?? [] }))
       );
       const results = await Promise.all(promises);
       // normalize to required shape
