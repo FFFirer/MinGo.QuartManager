@@ -2,10 +2,23 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Pause, Trash2 } from 'lucide-react';
-import { jobApi } from '../api';
+import { jobApi, manifestApi } from '../api';
 import ConfirmDialog from '../components/ConfirmDialog';
 import PageHeader from '../components/PageHeader';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import JobParamsDisplay from '../components/JobParamsDisplay';
+import type { JobDetailDto, ScheduleDto, QuartzOptionsDto, JobManifestDto } from '../types';
+
+/** Safely parse a JSON string, falling back to default on failure */
+function tryParseJson<T>(raw: string, fallback: T): T {
+  if (typeof raw !== 'string') return raw as unknown as T;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    console.warn('Failed to parse JSON string:', raw);
+    return fallback;
+  }
+}
 
 const JobDetailPage: React.FC = () => {
   const { schedulerName, jobKey } = useParams<{ schedulerName: string; jobKey: string }>();
@@ -21,9 +34,34 @@ const JobDetailPage: React.FC = () => {
     queryFn: async () => {
       const response = await jobApi.get(decodedSchedulerName, decodedJobKey);
       if (!response.success) throw new Error(response.errorMessage);
-      return response.data;
+      const dto = response.data!;
+      // Deserialize string fields from JobDefinitionDto to match JobDetailDto shape
+      return {
+        jobKey: dto.jobKey,
+        jobType: dto.jobType,
+        group: '',
+        status: dto.status,
+        description: '',
+        schedule: tryParseJson<ScheduleDto>(dto.schedule, {} as ScheduleDto),
+        options: tryParseJson<QuartzOptionsDto>(dto.options, {} as QuartzOptionsDto),
+        params: tryParseJson<Record<string, any>>(dto.params, {}),
+        nextFireTime: undefined,
+        previousFireTime: undefined,
+      } as JobDetailDto;
     },
     enabled: !!decodedSchedulerName && !!decodedJobKey,
+  });
+
+  // Fetch manifest for parameter metadata
+  const { data: manifest } = useQuery({
+    queryKey: ['manifest', decodedSchedulerName],
+    queryFn: async () => {
+      const response = await manifestApi.get(decodedSchedulerName);
+      if (!response.success) return null;
+      return response.data;
+    },
+    enabled: !!decodedSchedulerName,
+    staleTime: 60_000,
   });
 
   const triggerJob = useMutation({
@@ -103,13 +141,17 @@ const JobDetailPage: React.FC = () => {
 
   const scheduleTypeDisplay = (() => {
     if (!job.schedule) return 'N/A';
-    switch (job.schedule.type) {
+    const type = (job.schedule.type || '').toLowerCase();
+    switch (type) {
       case 'cron': return `Cron: ${job.schedule.cronExpression}`;
       case 'interval': return `Every ${job.schedule.intervalSeconds}s`;
       case 'once': return `Once at ${formatDate(job.schedule.runAt)}`;
       default: return job.schedule.type;
     }
   })();
+
+  // Get parameter definitions for this job type from manifest
+  const paramDefinitions = manifest?.jobs?.find(j => j.key === job.jobType)?.parameters;
 
   return (
     <div className="p-6">
@@ -194,27 +236,22 @@ const JobDetailPage: React.FC = () => {
 
       {/* Job Parameters */}
       {job.params && Object.keys(job.params).length > 0 && (
-        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 mb-6">
-          <h3 className="text-lg font-semibold text-slate-50 mb-3">Parameters</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {Object.entries(job.params).map(([key, value]) => (
-              <div key={key} className="text-sm">
-                <span className="text-slate-400">{key}: </span>
-                <span className="text-slate-50">{String(value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <JobParamsDisplay
+          params={job.params}
+          paramDefinitions={paramDefinitions}
+          searchable={true}
+        />
       )}
 
       {/* Delete Confirmation */}
       {isDeleteConfirmOpen && (
         <ConfirmDialog
+          isOpen={isDeleteConfirmOpen}
           title="Delete Job"
           message={`Are you sure you want to delete "${decodedJobKey}"? This action cannot be undone.`}
           confirmLabel="Delete"
           onConfirm={handleDelete}
-          onCancel={() => setIsDeleteConfirmOpen(false)}
+          onClose={() => setIsDeleteConfirmOpen(false)}
         />
       )}
     </div>
