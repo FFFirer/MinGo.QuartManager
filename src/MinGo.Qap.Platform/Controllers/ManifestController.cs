@@ -69,7 +69,7 @@ public class ManifestController : ControllerBase
         try
         {
             _logger.LogInformation("Manifest cache miss for scheduler {SchedulerName}, forwarding to agent", schedulerName);
-            var agentManifest = await _agentProxy.GetAsync<JobManifestDto>(schedulerName, "agent/manifest");
+            var agentManifest = await _agentProxy.GetAsync<JobManifestDto>(schedulerName, "manifest");
 
             if (agentManifest != null)
             {

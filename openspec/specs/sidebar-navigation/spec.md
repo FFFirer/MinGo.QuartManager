@@ -5,7 +5,7 @@
 This specification defines the requirements for the sidebar navigation with Agent and Scheduler navigation, including collapsible states and responsive behavior.
 
 **Status:** Updated  
-**Last Updated:** 2026-05-04
+**Last Updated:** 2026-05-06
 
 ---
 
@@ -42,6 +42,16 @@ The sidebar SHALL support a collapsed state (w-16, icons only) and expanded stat
 - **WHEN** user toggles sidebar
 - **THEN** the state SHALL be saved to localStorage
 - **AND** restored on next page load
+
+#### Scenario: Collapsed sidebar hides scrollbar
+- **WHEN** sidebar is in collapsed state
+- **THEN** the nav area SHALL NOT display a vertical scrollbar
+- **AND** the sidebar `<aside>` SHALL clip any overflowing content
+
+#### Scenario: Expanded sidebar shows scrollbar when needed
+- **WHEN** sidebar is in expanded state
+- **AND** navigation content overflows vertically
+- **THEN** the nav area SHALL show a vertical scrollbar
 
 ### Requirement: Sidebar auto-collapses on small screens
 
