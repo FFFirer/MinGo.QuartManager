@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MinGo.Qap.Platform.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MinGo.Qap.Platform.Migrations
 {
     [DbContext(typeof(PlatformDbContext))]
-    partial class PlatformDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260507160311_RemoveClusterFKFromJobDefinitions")]
+    partial class RemoveClusterFKFromJobDefinitions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -78,6 +81,68 @@ namespace MinGo.Qap.Platform.Migrations
                     b.ToTable("Agents", (string)null);
                 });
 
+            modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.AgentInstance", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AgentVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ClusterId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTimeOffset?>("LastHeartbeat")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("QuartzInstanceId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<int>("Status")
+                        .HasMaxLength(32)
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TokenHash")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClusterId");
+
+                    b.HasIndex("LastHeartbeat");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("AgentInstances", (string)null);
+                });
+
             modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.AgentScheduler", b =>
                 {
                     b.Property<string>("AgentId")
@@ -102,9 +167,69 @@ namespace MinGo.Qap.Platform.Migrations
                     b.ToTable("AgentSchedulers", (string)null);
                 });
 
+            modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.Cluster", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AgentUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("Env")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("LastHeartbeat")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<int>("Status")
+                        .HasMaxLength(32)
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TokenHash")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("Env");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("Clusters", (string)null);
+                });
+
             modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.JobDefinition", b =>
                 {
                     b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ClusterId")
+                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
@@ -114,10 +239,6 @@ namespace MinGo.Qap.Platform.Migrations
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("Group")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
 
                     b.Property<string>("JobKey")
                         .IsRequired()
@@ -137,17 +258,9 @@ namespace MinGo.Qap.Platform.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("ResultJson")
-                        .HasColumnType("text");
-
                     b.Property<string>("Schedule")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<string>("SchedulerName")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -159,7 +272,7 @@ namespace MinGo.Qap.Platform.Migrations
 
                     b.HasIndex("Status");
 
-                    b.HasIndex("SchedulerName", "JobKey")
+                    b.HasIndex("ClusterId", "JobKey")
                         .IsUnique();
 
                     b.ToTable("JobDefinitions", (string)null);
@@ -230,6 +343,17 @@ namespace MinGo.Qap.Platform.Migrations
                     b.ToTable("SchedulerInfos", (string)null);
                 });
 
+            modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.AgentInstance", b =>
+                {
+                    b.HasOne("MinGo.Qap.Platform.Data.Entities.Cluster", "Cluster")
+                        .WithMany("AgentInstances")
+                        .HasForeignKey("ClusterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cluster");
+                });
+
             modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.AgentScheduler", b =>
                 {
                     b.HasOne("MinGo.Qap.Platform.Data.Entities.Agent", "Agent")
@@ -252,6 +376,11 @@ namespace MinGo.Qap.Platform.Migrations
             modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.Agent", b =>
                 {
                     b.Navigation("AgentSchedulers");
+                });
+
+            modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.Cluster", b =>
+                {
+                    b.Navigation("AgentInstances");
                 });
 
             modelBuilder.Entity("MinGo.Qap.Platform.Data.Entities.SchedulerInfo", b =>

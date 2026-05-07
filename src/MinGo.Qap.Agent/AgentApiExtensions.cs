@@ -42,9 +42,9 @@ public static class AgentApiExtensions
         app.MapGet($"{prefix}/jobs/{{jobKey}}", GetJobHandler)
            .WithName("GetJob");
 
-        // POST /api/agent/jobs - 创建
-        app.MapPost($"{prefix}/jobs", CreateJobHandler)
-           .WithName("CreateJob");
+        // PUT /api/agent/jobs - 创建/替换（幂等）
+        app.MapPut($"{prefix}/jobs", CreateJobHandler)
+           .WithName("ReplaceJob");
 
         // PUT /api/agent/jobs/{jobKey} - 更新
         app.MapPut($"{prefix}/jobs/{{jobKey}}", UpdateJobHandler)

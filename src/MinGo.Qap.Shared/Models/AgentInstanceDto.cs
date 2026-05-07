@@ -13,11 +13,6 @@ public class AgentInstanceDto
     public string Id { get; set; } = string.Empty;
     
     /// <summary>
-    /// 所属 Cluster ID
-    /// </summary>
-    public string ClusterId { get; set; } = string.Empty;
-    
-    /// <summary>
     /// 实例显示名称
     /// </summary>
     public string? Name { get; set; }

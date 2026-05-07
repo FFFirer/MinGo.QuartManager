@@ -132,68 +132,27 @@ public class PlatformDbContext : DbContext
             entity.HasIndex(e => e.ReportedAt);
         });
 
-        // JobDefinition 配置（暂时保留，后续可能迁移）
+        // JobDefinition 配置
         modelBuilder.Entity<JobDefinition>(entity =>
         {
             entity.ToTable("JobDefinitions");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasMaxLength(64);
-            entity.Property(e => e.ClusterId).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.SchedulerName).HasMaxLength(64).IsRequired();
             entity.Property(e => e.JobKey).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.Group).HasMaxLength(256);
             entity.Property(e => e.JobType).HasMaxLength(256).IsRequired();
             entity.Property(e => e.Params).HasColumnType("text");
             entity.Property(e => e.Schedule).HasColumnType("text");
             entity.Property(e => e.Options).HasColumnType("text");
+            entity.Property(e => e.ResultJson).HasColumnType("text");
             entity.Property(e => e.ErrorMessage).HasMaxLength(4000);
 
             // 索引
-            entity.HasIndex(e => new { e.ClusterId, e.JobKey }).IsUnique();
+            entity.HasIndex(e => new { e.SchedulerName, e.JobKey }).IsUnique();
             entity.HasIndex(e => e.Status);
         });
 
-        // Cluster 配置（暂时保留，用于数据迁移）
-        modelBuilder.Entity<Cluster>(entity =>
-        {
-            entity.ToTable("Clusters");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasMaxLength(64);
-            entity.Property(e => e.Name).HasMaxLength(256).IsRequired();
-            entity.Property(e => e.Env).HasMaxLength(64).IsRequired();
-            entity.Property(e => e.AgentUrl).HasMaxLength(512);
-            entity.Property(e => e.Status).HasMaxLength(32).IsRequired();
-            entity.Property(e => e.TokenHash).HasMaxLength(256);
-            entity.Property(e => e.Description).HasMaxLength(1024);
 
-            // 索引
-            entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => e.Env);
-            entity.HasIndex(e => e.DeletedAt);
-
-            // 查询过滤软删除
-            entity.HasQueryFilter(e => e.DeletedAt == null);
-        });
-
-        // AgentInstance 配置（暂时保留，用于数据迁移）
-        modelBuilder.Entity<AgentInstance>(entity =>
-        {
-            entity.ToTable("AgentInstances");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasMaxLength(64);
-            entity.Property(e => e.ClusterId).HasMaxLength(64).IsRequired();
-            entity.Property(e => e.Name).HasMaxLength(128);
-            entity.Property(e => e.Url).HasMaxLength(512).IsRequired();
-            entity.Property(e => e.Status).HasMaxLength(32).IsRequired();
-            entity.Property(e => e.QuartzInstanceId).HasMaxLength(256);
-            entity.Property(e => e.TokenHash).HasMaxLength(256);
-            entity.Property(e => e.AgentVersion).HasMaxLength(64);
-
-            // 索引
-            entity.HasIndex(e => e.ClusterId);
-            entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => e.LastHeartbeat);
-
-            // 查询过滤软删除
-            entity.HasQueryFilter(e => e.DeletedAt == null);
-        });
     }
 }

@@ -23,7 +23,15 @@ public interface IJobService
 }
 
 /// <summary>
-/// Job 服务实现
+/// 声明冲突异常（409）
+/// </summary>
+public class DeclarationConflictException : Exception
+{
+    public DeclarationConflictException(string message) : base(message) { }
+}
+
+/// <summary>
+/// Job 服务实现 — 声明式创建
 /// </summary>
 public class JobService : IJobService
 {
@@ -43,49 +51,97 @@ public class JobService : IJobService
 
     public async Task<JobDefinitionDto> CreateAsync(string schedulerName, CreateJobRequest request)
     {
-        var jobDefId = $"job-{Guid.NewGuid().ToString()[..8]}";
+        // 1. 去重检查
+        var existing = await _dbContext.JobDefinitions
+            .FirstOrDefaultAsync(j => j.SchedulerName == schedulerName && j.JobKey == request.JobKey);
 
-        // 1. 记录为 Pending
-        var jobDef = new JobDefinition
+        JobDefinition jobDef;
+
+        if (existing != null)
         {
-            Id = jobDefId,
-            ClusterId = schedulerName,  // 用 SchedulerName 代替 ClusterId
-            JobKey = request.JobKey,
-            JobType = request.JobType.ToAssemblyQualifiedName(),
-            Params = JsonSerializer.Serialize(request.Params),
-            Schedule = JsonSerializer.Serialize(request.Schedule),
-            Options = JsonSerializer.Serialize(request.Options),
-            Status = SyncStatus.Pending,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+            switch (existing.Status)
+            {
+                case SyncStatus.Synced:
+                    throw new DeclarationConflictException("Job已存在");
 
-        _dbContext.JobDefinitions.Add(jobDef);
+                case SyncStatus.Pending:
+                    // 更新声明（覆盖参数）
+                    jobDef = existing;
+                    jobDef.Params = JsonSerializer.Serialize(request.Params);
+                    jobDef.Schedule = JsonSerializer.Serialize(request.Schedule);
+                    jobDef.Options = JsonSerializer.Serialize(request.Options);
+                    jobDef.UpdatedAt = DateTimeOffset.UtcNow;
+                    _logger.LogInformation("Updating existing pending declaration: {JobKey} on {SchedulerName}",
+                        request.JobKey, schedulerName);
+                    break;
+
+                case SyncStatus.Failed:
+                    // 重试
+                    jobDef = existing;
+                    jobDef.Params = JsonSerializer.Serialize(request.Params);
+                    jobDef.Schedule = JsonSerializer.Serialize(request.Schedule);
+                    jobDef.Options = JsonSerializer.Serialize(request.Options);
+                    jobDef.Status = SyncStatus.Pending;
+                    jobDef.ErrorMessage = null;
+                    jobDef.UpdatedAt = DateTimeOffset.UtcNow;
+                    _logger.LogInformation("Retrying failed declaration: {JobKey} on {SchedulerName}",
+                        request.JobKey, schedulerName);
+                    break;
+
+                default:
+                    jobDef = existing;
+                    break;
+            }
+        }
+        else
+        {
+            // 新建声明
+            var (group, _) = ParseJobKey(request.JobKey);
+
+            jobDef = new JobDefinition
+            {
+                Id = $"job-{Guid.NewGuid().ToString()[..8]}",
+                SchedulerName = schedulerName,
+                JobKey = request.JobKey,
+                Group = group,
+                JobType = request.JobType.ToAssemblyQualifiedName(),
+                Params = JsonSerializer.Serialize(request.Params),
+                Schedule = JsonSerializer.Serialize(request.Schedule),
+                Options = JsonSerializer.Serialize(request.Options),
+                Status = SyncStatus.Pending,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+
+            _dbContext.JobDefinitions.Add(jobDef);
+        }
+
         await _dbContext.SaveChangesAsync();
 
         try
         {
-            // 2. 转发到 Agent
-            var result = await _agentProxy.PostAsync<JobDetailDto>(schedulerName, "jobs", request);
+            // 2. 调用 Agent 的 PUT /api/agent/jobs（幂等替换）
+            var result = await _agentProxy.PutAsync<JobDetailDto>(schedulerName, "jobs", request);
 
-            // 3. 更新为 Synced
+            // 3. 回写结果
             jobDef.Status = SyncStatus.Synced;
+            jobDef.ResultJson = JsonSerializer.Serialize(result);
             jobDef.UpdatedAt = DateTimeOffset.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            _logger.LogInformation("Job created successfully: {JobKey} for scheduler {SchedulerName}",
+            _logger.LogInformation("Job declared successfully: {JobKey} on scheduler {SchedulerName}",
                 request.JobKey, schedulerName);
 
             return MapToDto(jobDef);
         }
         catch (AgentException ex)
         {
-            // 4. 标记为 Failed
+            // 4. 标记为 Failed（保留记录）
             jobDef.Status = SyncStatus.Failed;
             jobDef.ErrorMessage = ex.Message;
             jobDef.UpdatedAt = DateTimeOffset.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            _logger.LogError(ex, "Failed to create job: {JobKey} for scheduler {SchedulerName}",
+            _logger.LogError(ex, "Failed to declare job: {JobKey} on scheduler {SchedulerName}",
                 request.JobKey, schedulerName);
 
             throw;
@@ -115,7 +171,7 @@ public class JobService : IJobService
         {
             // 如果 Agent 不可用，返回本地备份
             var jobDef = await _dbContext.JobDefinitions
-                .FirstOrDefaultAsync(j => j.ClusterId == schedulerName && j.JobKey == jobKey);
+                .FirstOrDefaultAsync(j => j.SchedulerName == schedulerName && j.JobKey == jobKey);
 
             return jobDef != null ? MapToDto(jobDef) : null;
         }
@@ -141,7 +197,7 @@ public class JobService : IJobService
         {
             // 如果 Agent 不可用，返回本地备份
             var dbQuery = _dbContext.JobDefinitions
-                .Where(j => j.ClusterId == schedulerName);
+                .Where(j => j.SchedulerName == schedulerName);
 
             if (!string.IsNullOrEmpty(query.Status) &&
                 Enum.TryParse<SyncStatus>(query.Status, true, out var status))
@@ -178,9 +234,9 @@ public class JobService : IJobService
 
     public async Task UpdateAsync(string schedulerName, string jobKey, UpdateJobRequest request)
     {
-        // 1. 更新本地备份
+        // 1. 更新本地声明
         var jobDef = await _dbContext.JobDefinitions
-            .FirstOrDefaultAsync(j => j.ClusterId == schedulerName && j.JobKey == jobKey);
+            .FirstOrDefaultAsync(j => j.SchedulerName == schedulerName && j.JobKey == jobKey);
 
         if (jobDef != null)
         {
@@ -237,9 +293,9 @@ public class JobService : IJobService
         // 1. 转发到 Agent
         await _agentProxy.DeleteAsync(schedulerName, $"jobs/{jobKey}");
 
-        // 2. 删除本地备份
+        // 2. 删除本地声明
         var jobDef = await _dbContext.JobDefinitions
-            .FirstOrDefaultAsync(j => j.ClusterId == schedulerName && j.JobKey == jobKey);
+            .FirstOrDefaultAsync(j => j.SchedulerName == schedulerName && j.JobKey == jobKey);
 
         if (jobDef != null)
         {
@@ -282,7 +338,7 @@ public class JobService : IJobService
         return new JobDefinitionDto
         {
             Id = jobDef.Id,
-            SchedulerName = jobDef.ClusterId,
+            SchedulerName = jobDef.SchedulerName,
             JobKey = jobDef.JobKey,
             JobType = JobTypeQualifiedName.ParseFrom(jobDef.JobType),
             Params = jobDef.Params,
@@ -293,6 +349,25 @@ public class JobService : IJobService
             CreatedAt = jobDef.CreatedAt,
             UpdatedAt = jobDef.UpdatedAt
         };
+    }
+
+    /// <summary>
+    /// 解析 JobKey "GroupName.JobName" → (group, name)
+    /// </summary>
+    private static (string group, string name) ParseJobKey(string jobKey)
+    {
+        if (string.IsNullOrWhiteSpace(jobKey))
+        {
+            return ("DEFAULT", "unknown");
+        }
+
+        var parts = jobKey.Split('.', 2);
+        if (parts.Length == 2 && !string.IsNullOrWhiteSpace(parts[0]))
+        {
+            return (parts[0], parts[1]);
+        }
+
+        return ("DEFAULT", jobKey);
     }
 
     #endregion

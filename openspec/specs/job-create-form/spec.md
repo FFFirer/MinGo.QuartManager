@@ -149,14 +149,21 @@ The form SHALL support pre-filling all fields from an existing job when `?copyFr
 ### Requirement: Form submits correctly
 The form SHALL submit a valid `CreateJobRequest` to the API.
 
-#### Scenario: Successful submission
+**Extends**: Handles declarative creation response codes (200 success, 409 Conflict, 502 Agent error).
+
+#### Scenario: Successful submission (200)
 - **WHEN** user fills all required fields and clicks "Create Job"
 - **THEN** system sends POST to `/api/schedulers/{name}/jobs` with assembled request body
 - **AND** `jobKey` is composed as `"{group}.{name}"`
-- **AND** on success, shows toast "Job created successfully!"
+- **AND** on success (200), shows toast "Job created successfully!"
 - **AND** navigates back to Jobs list
 
-#### Scenario: Failed submission shows error
-- **WHEN** API returns an error
-- **THEN** system shows error toast with the error message
+#### Scenario: Agent error on submission (502)
+- **WHEN** Agent returns an error during job creation
+- **THEN** system shows error toast with the Agent error message
+- **AND** stays on the Create Job page
+
+#### Scenario: Duplicate declaration (409)
+- **WHEN** API returns HTTP 409 with message "Job已存在"
+- **THEN** system shows warning toast "Job已存在，无需重复创建"
 - **AND** stays on the Create Job page

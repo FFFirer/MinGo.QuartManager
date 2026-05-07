@@ -82,7 +82,7 @@ public class QuartzService : IQuartzService
     public async Task<JobDetailDto> CreateJobAsync(string schedulerName, CreateJobRequest request)
     {
         var scheduler = GetScheduler(schedulerName);
-        _logger.LogInformation("Creating job {JobKey} on scheduler {SchedulerName}", request.JobKey, schedulerName);
+        _logger.LogInformation("Replacing job {JobKey} on scheduler {SchedulerName}", request.JobKey, schedulerName);
 
         // 验证 Job 类型（按 FullName 匹配）
         var jobType = _registry.GetByFullName(request.JobType.FullName);
@@ -95,13 +95,25 @@ public class QuartzService : IQuartzService
         var jobDetail = _converter.ConvertToDetail(request, jobType);
         var trigger = _converter.ConvertToTrigger(request.JobKey, request.Schedule);
 
-        // 调度 Job（replace: true 实现幂等）
-        await scheduler.ScheduleJob(jobDetail, new[] { trigger }, replace: true, cancellationToken: default);
 
-        _logger.LogInformation("Job created successfully: {JobKey}", request.JobKey);
+        // 1. 替换/创建 JobDetail（幂等，replace: true）
+        await scheduler.AddJob(jobDetail, replace: true, cancellationToken: default);
+
+        // 2. 替换 Trigger
+        var (_, group) = ParseJobKey(request.JobKey);
+        var triggerName = $"{request.JobKey.Split('.').Last()}_trigger";
+        var triggerKey = new TriggerKey(triggerName, group);
+        var replaced = await scheduler.RescheduleJob(triggerKey, trigger, cancellationToken: default);
+        if (replaced == null)
+        {
+            // 不存在旧 trigger，新增
+            await scheduler.ScheduleJob(trigger, cancellationToken: default);
+        }
+
+        _logger.LogInformation("Job replaced successfully: {JobKey}", request.JobKey);
 
         return await GetJobAsync(schedulerName, request.JobKey)
-            ?? throw new InvalidOperationException("Failed to retrieve created job");
+            ?? throw new InvalidOperationException("Failed to retrieve replaced job");
     }
 
     public async Task UpdateJobAsync(string schedulerName, string jobKey, UpdateJobRequest request)

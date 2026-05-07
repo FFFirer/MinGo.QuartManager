@@ -16,11 +16,6 @@ public class AgentRegistrationResponse
     public string QuartzInstanceId { get; set; } = string.Empty;
     
     /// <summary>
-    /// 集群 ID
-    /// </summary>
-    public string ClusterId { get; set; } = string.Empty;
-    
-    /// <summary>
     /// 平台 API 端点基础 URL
     /// </summary>
     public string PlatformApiBaseUrl { get; set; } = string.Empty;

@@ -64,7 +64,7 @@ public class JobsController : ControllerBase
     }
 
     /// <summary>
-    /// 创建 Job
+    /// 创建 Job（声明式）
     /// </summary>
     [HttpPost]
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
@@ -74,6 +74,10 @@ public class JobsController : ControllerBase
         {
             var job = await _jobService.CreateAsync(schedulerName, request);
             return Ok(ApiResponse<JobDefinitionDto>.Ok(job));
+        }
+        catch (DeclarationConflictException ex)
+        {
+            return Conflict(ApiResponse<JobDefinitionDto>.Fail(ex.Message));
         }
         catch (AgentException ex)
         {

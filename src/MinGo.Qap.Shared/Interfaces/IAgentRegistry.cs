@@ -27,7 +27,6 @@ public interface IAgentRegistry
 /// Agent 注册请求
 /// </summary>
 public record AgentRegistrationRequest(
-    string ClusterId,
     string? Name,
     string Url,
     string? QuartzInstanceId,
