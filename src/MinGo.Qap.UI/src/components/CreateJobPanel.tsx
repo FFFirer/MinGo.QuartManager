@@ -155,7 +155,7 @@ const CreateJobPanel: React.FC<CreateJobPanelProps> = ({ schedulerName, isOpen, 
 
     const request: CreateJobRequest = {
       jobKey,
-      jobType: selectedJob?.jobTypeFullName ?? selectedJobType,
+      jobType: selectedJob?.jobTypeQualifiedName ?? { fullName: selectedJobType },
       params,
       schedule,
       options,

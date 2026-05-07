@@ -203,7 +203,7 @@ public class JobDiscoveryService : IJobDiscoveryService
 
             return new DiscoveredJobInfo(
                 JobKey: key,
-                JobTypeFullName: jobType.FullName ?? jobType.Name,
+                JobTypeQualifiedName: JobTypeQualifiedName.ParseFrom(jobType),
                 Description: description,
                 Parameters: parameters,
                 Schedule: null

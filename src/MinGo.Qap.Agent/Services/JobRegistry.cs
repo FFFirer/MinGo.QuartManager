@@ -95,7 +95,7 @@ public class JobRegistry : IJobRegistry
 
     public JobTypeInfoDto? GetByFullName(string fullName)
     {
-        return _jobs.FirstOrDefault(j => j.JobTypeFullName == fullName);
+        return _jobs.FirstOrDefault(j => j.JobTypeQualifiedName?.FullName == fullName);
     }
 
     public IEnumerable<JobTypeInfoDto> GetAll()

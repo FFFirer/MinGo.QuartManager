@@ -152,7 +152,7 @@ const JobDetailPage: React.FC = () => {
   })();
 
   // Get parameter definitions for this job type from manifest (match by FullName)
-  const paramDefinitions = manifest?.jobs?.find(j => j.jobTypeFullName === job.jobType)?.parameters;
+  const paramDefinitions = manifest?.jobs?.find(j => j.jobTypeQualifiedName?.fullName === job.jobType?.fullName)?.parameters;
 
   return (
     <div className="p-6">

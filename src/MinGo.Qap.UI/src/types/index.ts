@@ -164,6 +164,15 @@ export interface SchedulerReportRequest {
   schedulers: SchedulerInfoDto[];
 }
 
+// JobTypeQualifiedName — 结构化限定名
+export interface JobTypeQualifiedName {
+  fullName: string;
+  assembly: string;
+  version?: string;
+  culture?: string;
+  publicKeyToken?: string;
+}
+
 // Job types
 export interface ScheduleDto {
   type: ScheduleType;
@@ -179,7 +188,7 @@ export interface QuartzOptionsDto {
 
 export interface CreateJobRequest {
   jobKey: string;
-  jobType: string;
+  jobType: JobTypeQualifiedName;
   params: Record<string, any>;
   schedule: ScheduleDto;
   options: QuartzOptionsDto;
@@ -195,7 +204,7 @@ export interface JobDefinitionDto {
   id: string;
   schedulerName: string;
   jobKey: string;
-  jobType: string;
+  jobType: JobTypeQualifiedName;
   params: string;
   schedule: string;
   options: string;
@@ -207,7 +216,7 @@ export interface JobDefinitionDto {
 
 export interface JobSummaryDto {
   jobKey: string;
-  jobType: string;
+  jobType: JobTypeQualifiedName;
   group: string;
   status: string;
   scheduleType: string;
@@ -218,7 +227,7 @@ export interface JobSummaryDto {
 
 export interface JobDetailDto {
   jobKey: string;
-  jobType: string;
+  jobType: JobTypeQualifiedName;
   group: string;
   status: string;
   description: string;
@@ -246,7 +255,7 @@ export interface ParameterInfoDto {
 
 export interface JobTypeInfoDto {
   key: string;
-  jobTypeFullName?: string;
+  jobTypeQualifiedName?: JobTypeQualifiedName;
   description: string;
   parameters: ParameterInfoDto[];
 }

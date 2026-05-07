@@ -86,8 +86,8 @@ public static class AgentExtensions
                 manifest.Jobs.Add(new JobTypeInfoDto
                 {
                     Key = job.JobKey,
-                    JobTypeFullName = job.JobTypeFullName ?? string.Empty,
-                    Description = job.Description ?? job.JobTypeFullName ?? string.Empty,
+                    JobTypeQualifiedName = job.JobTypeQualifiedName,
+                    Description = job.Description ?? job.JobTypeQualifiedName?.FullName ?? string.Empty,
                     Parameters = job.Parameters ?? []
                 });
             }
@@ -101,6 +101,7 @@ public static class AgentExtensions
                     manifest.Jobs.Add(new JobTypeInfoDto
                     {
                         Key = key,
+                        JobTypeQualifiedName = new JobTypeQualifiedName { FullName = jobType },
                         Description = jobType,
                         Parameters = new List<ParameterInfoDto>()
                     });

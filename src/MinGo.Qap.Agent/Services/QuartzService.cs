@@ -85,10 +85,10 @@ public class QuartzService : IQuartzService
         _logger.LogInformation("Creating job {JobKey} on scheduler {SchedulerName}", request.JobKey, schedulerName);
 
         // 验证 Job 类型（按 FullName 匹配）
-        var jobType = _registry.GetByFullName(request.JobType);
+        var jobType = _registry.GetByFullName(request.JobType.FullName);
         if (jobType == null)
         {
-            throw new ArgumentException($"Unknown job type: {request.JobType}");
+            throw new ArgumentException($"Unknown job type: {request.JobType.FullName}");
         }
 
         // 转换参数
@@ -408,11 +408,13 @@ public class QuartzService : IQuartzService
     #region Helper Methods
 
     /// <summary>
-    /// 解析 Job 类型的 CLR 完整名称（Type.FullName）。
+    /// 解析 Job 类型的结构化限定名。
     /// </summary>
-    private static string ResolveJobType(IJobDetail jobDetail)
+    private static JobTypeQualifiedName ResolveJobType(IJobDetail jobDetail)
     {
-        return jobDetail.JobType?.FullName ?? "unknown";
+        return jobDetail.JobType != null
+            ? JobTypeQualifiedName.ParseFrom(jobDetail.JobType)
+            : new JobTypeQualifiedName { FullName = "unknown" };
     }
 
     private (string name, string group) ParseJobKey(string jobKey)

@@ -11,9 +11,9 @@ public class JobTypeInfoDto
     public string Key { get; set; } = string.Empty;
 
     /// <summary>
-    /// Job 类型完整名称（用于反射创建实例）
+    /// Job 类型的结构化限定名（用于反射创建实例与 UI 展示）
     /// </summary>
-    public string JobTypeFullName { get; set; } = string.Empty;
+    public JobTypeQualifiedName JobTypeQualifiedName { get; set; } = new();
 
     /// <summary>
     /// Job 描述

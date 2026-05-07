@@ -28,7 +28,7 @@ public interface IJobDiscovery
 /// </summary>
 public record DiscoveredJobInfo(
     string JobKey,
-    string JobTypeFullName,
+    JobTypeQualifiedName JobTypeQualifiedName,
     string? Description,
     List<ParameterInfoDto>? Parameters,
     ScheduleInfo? Schedule

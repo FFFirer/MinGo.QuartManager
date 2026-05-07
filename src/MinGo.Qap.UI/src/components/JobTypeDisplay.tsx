@@ -1,45 +1,60 @@
 import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
+import type { JobTypeQualifiedName } from '../types';
 
 interface JobTypeDisplayProps {
-  jobType: string;
-  /** Max length before truncation with ellipsis in the middle (default: 60) */
+  jobType: JobTypeQualifiedName;
+  /** Tooltip truncation threshold (default: 60) */
   maxLength?: number;
+  /** Show copy button (default: true) */
+  showCopy?: boolean;
+  /** Size variant (default: 'md') */
+  size?: 'sm' | 'md';
 }
 
 /**
- * Displays a CLR type full name with:
- * - Namespace prefix in a muted color, class name prominent
- * - Hover tooltip with the full name
- * - Copy button to copy the full name to clipboard
+ * Full-width JobTypeDisplay with:
+ * - Assembly tag (dark bg, left)
+ * - TypeName with right-ellipsis (namespace ellipsed, class name always visible)
+ * - Copy button (right)
+ * - Hover tooltip with full "fullName, assembly" string
  */
-const JobTypeDisplay: React.FC<JobTypeDisplayProps> = ({ jobType, maxLength = 60 }) => {
+const JobTypeDisplay: React.FC<JobTypeDisplayProps> = ({
+  jobType,
+  maxLength = 60,
+  showCopy = true,
+  size = 'md',
+}) => {
   const [copied, setCopied] = useState(false);
 
-  if (!jobType) {
-    return <span className="text-slate-500 italic">unknown</span>;
+  if (!jobType || !jobType.fullName) {
+    return <span className="text-slate-500 italic text-sm">unknown</span>;
   }
 
-  // Split namespace and class name
-  const lastDot = jobType.lastIndexOf('.');
-  const namespace = lastDot > 0 ? jobType.slice(0, lastDot) : '';
-  const className = lastDot > 0 ? jobType.slice(lastDot + 1) : jobType;
+  const { fullName, assembly } = jobType;
 
-  // Truncate the full name for display if it exceeds maxLength
-  const displayName = jobType.length > maxLength
-    ? `${jobType.slice(0, Math.floor((maxLength - 3) / 2))}...${jobType.slice(-Math.ceil((maxLength - 3) / 2))}`
-    : jobType;
+  // Split fullName into namespace prefix and class name (last segment)
+  const lastDot = fullName.lastIndexOf('.');
+  const namespace = lastDot > 0 ? fullName.slice(0, lastDot + 1) : '';
+  const className = lastDot > 0 ? fullName.slice(lastDot + 1) : fullName;
+
+  // Composed string for tooltip and copy
+  const composedString = assembly ? `${fullName}, ${assembly}` : fullName;
+
+  // Tooltip display with middle-truncation
+  const tooltipName = composedString.length > maxLength
+    ? `${composedString.slice(0, Math.floor((maxLength - 3) / 2))}...${composedString.slice(-Math.ceil((maxLength - 3) / 2))}`
+    : composedString;
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(jobType);
+      await navigator.clipboard.writeText(composedString);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Fallback for environments where clipboard API is not available
       const textArea = document.createElement('textarea');
-      textArea.value = jobType;
+      textArea.value = composedString;
       document.body.appendChild(textArea);
       textArea.select();
       document.execCommand('copy');
@@ -49,28 +64,50 @@ const JobTypeDisplay: React.FC<JobTypeDisplayProps> = ({ jobType, maxLength = 60
     }
   };
 
+  // Size classes
+  const tagSizeClass = size === 'sm' ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-1';
+  const typeSizeClass = size === 'sm' ? 'text-xs' : 'text-sm';
+  const copySize = size === 'sm' ? 10 : 12;
+
   return (
-    <span className="inline-flex items-center gap-1.5 group relative">
-      {/* Main display: namespace muted + class name prominent */}
-      <span className="text-sm text-slate-50 truncate max-w-[200px]" title={jobType}>
+    <span className="flex w-full items-center gap-1.5 group relative min-w-0">
+      {/* Assembly tag */}
+      {assembly && (
+        <span
+          className={`${tagSizeClass} bg-slate-700 text-slate-300 rounded shrink-0 leading-none`}
+          title={composedString}
+        >
+          {assembly}
+        </span>
+      )}
+
+      {/* TypeName: namespace (right-ellipsis) + className (always visible) */}
+      <span
+        className={`flex-1 min-w-0 flex overflow-hidden ${typeSizeClass} text-slate-50 leading-none`}
+        title={composedString}
+      >
         {namespace && (
-          <span className="text-slate-500">{namespace}.</span>
+          <span className="overflow-hidden text-ellipsis whitespace-nowrap text-slate-500">
+            {namespace}
+          </span>
         )}
-        <span className="text-slate-50 font-medium">{className}</span>
+        <span className="shrink-0 font-medium">{className}</span>
       </span>
 
       {/* Copy button */}
-      <button
-        onClick={handleCopy}
-        className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-        title="Copy full type name"
-      >
-        {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-      </button>
+      {showCopy && (
+        <button
+          onClick={handleCopy}
+          className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+          title="Copy full type name"
+        >
+          {copied ? <Check size={copySize} className="text-green-400" /> : <Copy size={copySize} />}
+        </button>
+      )}
 
       {/* Tooltip on hover */}
       <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 max-w-md overflow-hidden text-ellipsis">
-        {displayName}
+        {tooltipName}
       </div>
     </span>
   );

@@ -51,7 +51,7 @@ public class JobService : IJobService
             Id = jobDefId,
             ClusterId = schedulerName,  // 用 SchedulerName 代替 ClusterId
             JobKey = request.JobKey,
-            JobType = request.JobType,
+            JobType = request.JobType.ToAssemblyQualifiedName(),
             Params = JsonSerializer.Serialize(request.Params),
             Schedule = JsonSerializer.Serialize(request.Schedule),
             Options = JsonSerializer.Serialize(request.Options),
@@ -166,7 +166,7 @@ public class JobService : IJobService
                 Items = jobDefs.Select(j => new JobSummaryDto
                 {
                     JobKey = j.JobKey,
-                    JobType = j.JobType,
+                    JobType = JobTypeQualifiedName.ParseFrom(j.JobType),
                     Status = j.Status.ToString()
                 }).ToList(),
                 Total = total,
@@ -284,7 +284,7 @@ public class JobService : IJobService
             Id = jobDef.Id,
             SchedulerName = jobDef.ClusterId,
             JobKey = jobDef.JobKey,
-            JobType = jobDef.JobType,
+            JobType = JobTypeQualifiedName.ParseFrom(jobDef.JobType),
             Params = jobDef.Params,
             Schedule = jobDef.Schedule,
             Options = jobDef.Options,

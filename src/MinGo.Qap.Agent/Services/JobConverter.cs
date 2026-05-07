@@ -38,7 +38,7 @@ public class JobConverter : IJobConverter
         
         // 构建 JobDataMap
         var jobDataMap = new JobDataMap();
-        jobDataMap["jobType"] = request.JobType;
+        jobDataMap["jobType"] = request.JobType.ToAssemblyQualifiedName();
         
         if (request.Params != null)
         {
@@ -50,14 +50,15 @@ public class JobConverter : IJobConverter
 
         // 解析实际 Job 类型
         Type? actualType = null;
-        if (!string.IsNullOrEmpty(jobType.JobTypeFullName))
+        var aqnString = jobType.JobTypeQualifiedName?.ToAssemblyQualifiedName();
+        if (!string.IsNullOrEmpty(aqnString))
         {
-            actualType = Type.GetType(jobType.JobTypeFullName);
+            actualType = Type.GetType(aqnString);
             if (actualType == null)
             {
                 foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    actualType = assembly.GetType(jobType.JobTypeFullName);
+                    actualType = assembly.GetType(aqnString);
                     if (actualType != null) break;
                 }
             }
