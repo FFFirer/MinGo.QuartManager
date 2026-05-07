@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Play, Pause, Trash2, Plus, RefreshCw } from 'lucide-react';
+import { Play, Pause, Trash2, Plus, RefreshCw, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { jobApi } from '../api';
-import CreateJobPanel from '../components/CreateJobPanel';
 import StatusBadge from '../components/StatusBadge';
 import JobTypeDisplay from '../components/JobTypeDisplay';
 import DataTable from '../components/DataTable';
@@ -18,7 +17,6 @@ const JobsPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<string | null>(null);
   // Batch selection state
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
@@ -103,7 +101,7 @@ const JobsPage: React.FC = () => {
       if (failures === 0) {
         toast.success(`Triggered ${successes} of ${total} jobs successfully`);
       } else if (successes > 0) {
-        toast.warn(`Partial success: ${successes} of ${total} succeeded, ${failures} failed`);
+        toast.error(`Partial success: ${successes} of ${total} succeeded, ${failures} failed`);
       } else {
         toast.error(`Failed to perform operation on all ${total} jobs`);
       }
@@ -232,6 +230,13 @@ const JobsPage: React.FC = () => {
             <Play size={14} />
           </button>
           <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs/create?copyFrom=${encodeURIComponent(row.jobKey)}`); }}
+            className="p-1.5 text-purple-400 hover:text-purple-300 hover:bg-slate-700 rounded"
+            title="Copy"
+          >
+            <Copy size={14} />
+          </button>
+          <button
             onClick={(e) => { e.stopPropagation(); setDeleteConfirmJobId(row.jobKey); }}
             className="p-1.5 text-red-400 hover:text-red-300 hover:bg-slate-700 rounded"
             title="Delete"
@@ -265,7 +270,7 @@ const JobsPage: React.FC = () => {
               Refresh
             </button>
             <button
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={() => navigate(`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs/create`)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
               <Plus size={16} />
@@ -291,6 +296,7 @@ const JobsPage: React.FC = () => {
       {/* Batch Delete Confirmation for selected items */}
       {batchDeleteDialogOpen && (
         <ConfirmDialog
+          isOpen={batchDeleteDialogOpen}
           title="Delete Selected Jobs"
           message={`Are you sure you want to delete ${selectedKeys.size} selected job(s)? This action cannot be undone.`}
           confirmLabel="Delete"
@@ -298,7 +304,7 @@ const JobsPage: React.FC = () => {
             batchMutation.mutate('delete');
             setBatchDeleteDialogOpen(false);
           }}
-          onCancel={() => setBatchDeleteDialogOpen(false)}
+          onClose={() => setBatchDeleteDialogOpen(false)}
         />
       )}
 
@@ -322,18 +328,10 @@ const JobsPage: React.FC = () => {
         onPageSizeChange={handlePageSizeChange}
       />
 
-      {/* Create Job Panel */}
-      {isCreateModalOpen && (
-        <CreateJobPanel
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          schedulerName={decodedSchedulerName}
-        />
-      )}
-
       {/* Delete Confirmation */}
       {deleteConfirmJobId && (
         <ConfirmDialog
+          isOpen={true}
           title="Delete Job"
           message={`Are you sure you want to delete job "${deleteConfirmJobId}"?`}
           confirmLabel="Delete"
@@ -341,7 +339,7 @@ const JobsPage: React.FC = () => {
             deleteJob.mutate(deleteConfirmJobId);
             setDeleteConfirmJobId(null);
           }}
-          onCancel={() => setDeleteConfirmJobId(null)}
+          onClose={() => setDeleteConfirmJobId(null)}
         />
       )}
     </div>

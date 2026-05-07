@@ -1,0 +1,151 @@
+## ADDED Requirements
+
+### Requirement: User can navigate to full-page Create Job form
+The system SHALL provide a dedicated route `/schedulers/{schedulerName}/jobs/create` for creating jobs in a full-page layout.
+
+#### Scenario: Navigate from Jobs list
+- **WHEN** user clicks "Create Job" button on JobsPage
+- **THEN** system navigates to `/schedulers/{schedulerName}/jobs/create`
+
+#### Scenario: Navigate with copyFrom parameter
+- **WHEN** user clicks "Copy" action on a job row in JobsPage
+- **THEN** system navigates to `/schedulers/{schedulerName}/jobs/create?copyFrom={GROUP.name}`
+
+#### Scenario: Create page has back navigation
+- **WHEN** user is on the Create Job page
+- **THEN** system shows a "← Back to Jobs" link that navigates back to the Jobs list
+
+### Requirement: User can select or enter Job Group
+The form SHALL provide a Group field that allows selecting from existing groups or entering a custom group name.
+
+#### Scenario: Group dropdown shows existing groups
+- **WHEN** Create Job page loads
+- **THEN** system fetches existing jobs and extracts unique group names
+- **AND** populates a dropdown with those groups plus "DEFAULT" plus "Create New" option
+
+#### Scenario: User selects existing group
+- **WHEN** user selects a group from the dropdown
+- **THEN** the selected group value is used when submitting
+
+#### Scenario: User creates a new group
+- **WHEN** user selects "Create New" in the group dropdown
+- **THEN** a text input appears for entering a custom group name
+
+### Requirement: User can enter Job Name
+The form SHALL provide a required text input for the job name.
+
+#### Scenario: Job name is required
+- **WHEN** user submits the form without entering a job name
+- **THEN** system shows validation error "Job name is required"
+
+#### Scenario: Job name cannot contain dots
+- **WHEN** user enters a job name containing dots
+- **THEN** system shows validation error "Job name cannot contain '.' character"
+- **AND** submission is blocked
+
+### Requirement: User can select Job Type from manifest
+The form SHALL display available job types from the scheduler manifest for selection.
+
+#### Scenario: Job types are loaded from manifest
+- **WHEN** Create Job page loads
+- **THEN** system fetches manifest via `manifestApi.get(schedulerName)`
+- **AND** displays available job types as selectable cards
+
+#### Scenario: User selects a job type
+- **WHEN** user clicks on a job type card
+- **THEN** the card becomes highlighted (selected state)
+- **AND** the parameters section renders with fields defined in the manifest for that job type
+
+### Requirement: Parameters render with appropriate form controls
+The form SHALL render parameter fields based on their type from the manifest.
+
+#### Scenario: String parameter renders as text input
+- **WHEN** a parameter has type "string"
+- **THEN** it renders as a text input field
+
+#### Scenario: Integer parameter renders as number input
+- **WHEN** a parameter has type "int"
+- **THEN** it renders as a number input field with step=1
+
+#### Scenario: Boolean parameter renders as select
+- **WHEN** a parameter has type "bool"
+- **THEN** it renders as a select dropdown with "True" and "False" options
+
+#### Scenario: Complex parameter renders as JSON textarea
+- **WHEN** a parameter has a type other than "string", "int", or "bool"
+- **THEN** it renders as a textarea with JSON validation (red border on invalid JSON)
+
+### Requirement: Required parameters are validated
+The form SHALL validate that all required parameters (marked with `required: true` in manifest) have values before submission.
+
+#### Scenario: Required parameter missing shows error
+- **WHEN** user submits the form with a required parameter left empty
+- **THEN** system shows inline error "此字段为必填项" below the empty required field
+- **AND** submission is blocked
+
+#### Scenario: Required parameter marked visually
+- **WHEN** a parameter is required
+- **THEN** its label has a red asterisk `*` suffix
+
+### Requirement: User can configure schedule
+The form SHALL support three schedule types: Cron, Interval, and Once.
+
+#### Scenario: Cron schedule with presets
+- **WHEN** schedule type is "Cron"
+- **THEN** system shows a text input for cron expression
+- **AND** preset buttons: "每日午夜" (0 0 * * *), "每6小时" (0 */6 * * *), "每周一" (0 0 * * 1)
+- **AND** clicking a preset fills the cron expression input
+
+#### Scenario: Cron validation
+- **WHEN** user enters an invalid cron expression (empty or wrong format)
+- **THEN** system shows validation error "Please enter a valid cron expression"
+
+#### Scenario: Interval schedule
+- **WHEN** schedule type is "Interval"
+- **THEN** system shows number inputs for hours, minutes, and seconds
+- **AND** at least one must be > 0
+
+#### Scenario: Once schedule
+- **WHEN** schedule type is "Once"
+- **THEN** system shows a datetime-local input for execution time
+- **AND** leaving it empty means run immediately
+
+### Requirement: User can configure options
+The form SHALL support Quartz options: Disallow Concurrent Execution and Misfire Policy.
+
+#### Scenario: Disallow concurrent execution toggle
+- **WHEN** user toggles "Disallow Concurrent Execution"
+- **THEN** the option is included in the submission request
+
+#### Scenario: Misfire policy selection
+- **WHEN** user selects a misfire policy from dropdown
+- **THEN** the selected policy is included in the submission request
+- **AND** options include "Fire and Proceed", "Ignore Misfire", "Do Nothing"
+
+### Requirement: Copy from existing job
+The form SHALL support pre-filling all fields from an existing job when `?copyFrom=GROUP.name` is provided.
+
+#### Scenario: CopyFrom prefills form fields
+- **WHEN** page loads with `?copyFrom=GROUP.name` query parameter
+- **THEN** system fetches existing job via `jobApi.get(schedulerName, "GROUP.name")`
+- **AND** pre-fills: group, name (extracted from jobKey), params, schedule, options
+- **AND** user can modify any field before submitting
+
+#### Scenario: CopyFrom shows source indicator
+- **WHEN** form is pre-filled from copyFrom
+- **THEN** system shows a notice "Copying from: GROUP.name"
+
+### Requirement: Form submits correctly
+The form SHALL submit a valid `CreateJobRequest` to the API.
+
+#### Scenario: Successful submission
+- **WHEN** user fills all required fields and clicks "Create Job"
+- **THEN** system sends POST to `/api/schedulers/{name}/jobs` with assembled request body
+- **AND** `jobKey` is composed as `"{group}.{name}"`
+- **AND** on success, shows toast "Job created successfully!"
+- **AND** navigates back to Jobs list
+
+#### Scenario: Failed submission shows error
+- **WHEN** API returns an error
+- **THEN** system shows error toast with the error message
+- **AND** stays on the Create Job page

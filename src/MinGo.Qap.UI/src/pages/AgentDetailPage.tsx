@@ -2,30 +2,24 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { agentApi } from '../api';
-import type { AgentDetailDto, AgentSchedulerDto } from '../types';
+import type { AgentDetailDto, AgentSchedulerDto, ApiResponse } from '../types';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import PageHeader from '../components/PageHeader';
 
-type ApiResponse<T> = {
-  data: T;
-  [key: string]: any;
-};
-
 export const AgentDetailPage: React.FC = () => {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
 
-  const { data: apiResp, isLoading, isError, error, refetch } = useQuery<ApiResponse<AgentDetailDto>, Error>({
+  const { data: apiResp, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['agent', agentId],
     queryFn: () => agentApi.get(agentId as string),
     enabled: !!agentId,
-    refetchInterval: 30000, // 30 seconds auto-refresh
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 
-  // Normalize to AgentDetailDto when API returns { data: AgentDetailDto }
   const agent: AgentDetailDto | undefined = apiResp?.data;
 
   const formatDate = (value?: string | number) => {

@@ -292,3 +292,22 @@ export interface SystemMetricsDto {
   memoryTotalMb: number;
   cpuPercent: number;
 }
+
+// Utility: parse a "GROUP.name" job key into parts
+export function parseJobKey(jobKey: string): { group: string; name: string } {
+  const idx = jobKey.indexOf('.');
+  if (idx > 0) {
+    return { group: jobKey.substring(0, idx), name: jobKey.substring(idx + 1) };
+  }
+  return { group: 'DEFAULT', name: jobKey };
+}
+
+// Utility: safely parse a JSON string or return fallback
+export function tryParseJson<T>(raw: string, fallback: T): T {
+  if (typeof raw !== 'string') return raw as unknown as T;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}

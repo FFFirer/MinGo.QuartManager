@@ -62,7 +62,7 @@ public class ManifestController : ControllerBase
 
         if (_manifestCache.TryGetValue(schedulerName, out var manifest))
         {
-            return Ok(manifest);
+            return Ok(ApiResponse<JobManifestDto>.Ok(manifest));
         }
 
         // 缓存未命中，从 Agent 实时获取
@@ -74,7 +74,7 @@ public class ManifestController : ControllerBase
             if (agentManifest != null)
             {
                 _manifestCache[schedulerName] = agentManifest;
-                return Ok(agentManifest);
+                return Ok(ApiResponse<JobManifestDto>.Ok(agentManifest));
             }
         }
         catch (AgentException ex)
@@ -87,9 +87,9 @@ public class ManifestController : ControllerBase
         }
 
         // Agent 不可用时返回空的 manifest
-        return Ok(new JobManifestDto
+        return Ok(ApiResponse<JobManifestDto>.Ok(new JobManifestDto
         {
             Jobs = new List<JobTypeInfoDto>()
-        });
+        }));
     }
 }

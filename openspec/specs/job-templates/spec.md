@@ -2,40 +2,29 @@
 
 ## Purpose
 
-This specification defines the requirements for creating jobs from templates and copying from existing jobs.
+This specification defines the job creation flow, supporting creating new jobs from scratch and copying from existing jobs via the full-page Create Job form.
 
-**Status:** New  
-**Last Updated:** 2026-05-04
+**Status:** Updated  
+**Last Updated:** 2026-05-07
 
 ---
 
-## ADDED Requirements
-
-### Requirement: Create job supports template selection
-
-The create job panel SHALL allow users to start from a predefined template or copy from an existing job.
-
-#### Scenario: Template selector visible
-- **WHEN** create job panel opens
-- **THEN** a template selector SHALL appear at the top with options:
-  - "Blank" (start fresh)
-  - List of available job type templates from manifest
-  - "Copy from existing" option
-
-#### Scenario: Select template pre-fills form
-- **WHEN** user selects a job type template
-- **THEN** the job type field SHALL be pre-selected
-- **AND** parameter fields SHALL show default values from the manifest
-- **AND** schedule type SHALL default to Cron with expression "0 0 * * *"
+## Requirements
 
 ### Requirement: Create job supports copying from existing job
+The system SHALL allow users to copy configuration from an existing job via URL parameter.
 
-The create job panel SHALL allow users to copy configuration from an existing job.
-
-#### Scenario: Copy from existing job
-- **WHEN** user selects "Copy from existing"
-- **THEN** a searchable dropdown SHALL show all existing jobs for the current scheduler
-- **AND** **WHEN** user selects a source job
-- **THEN** all fields SHALL be pre-filled from the source job's configuration
-- **AND** the job key field SHALL be cleared (user must enter a new unique key)
+#### Scenario: Copy from existing job via URL parameter
+- **WHEN** user clicks "Copy" action on a job row in JobsPage
+- **THEN** system navigates to `/schedulers/{name}/jobs/create?copyFrom={GROUP.name}`
+- **AND** the Create Job page pre-fills all fields from the source job
 - **AND** the user SHALL be able to modify any field before creating
+- **AND** submitting creates a new job (does not update the source)
+
+### Requirement: Create new job from scratch
+The system SHALL allow creating a new job from the full-page form with all fields empty (defaults applied).
+
+#### Scenario: Navigate to create new job
+- **WHEN** user clicks "Create Job" button on JobsPage
+- **THEN** system navigates to `/schedulers/{name}/jobs/create`
+- **AND** the form is empty with default values
