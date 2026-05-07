@@ -299,8 +299,8 @@ public class AgentService
             Url = agent.Url,
             Status = agent.Status,
             AgentVersion = agent.AgentVersion,
-            LastHeartbeat = agent.LastHeartbeat?.UtcDateTime,
-            StartedAt = agent.StartedAt.UtcDateTime,
+            LastHeartbeat = agent.LastHeartbeat,
+            StartedAt = agent.StartedAt,
             SchedulerCount = agent.AgentSchedulers?.Count ?? 0
         };
     }

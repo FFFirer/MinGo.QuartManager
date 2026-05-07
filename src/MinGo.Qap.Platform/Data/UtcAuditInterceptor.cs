@@ -60,7 +60,8 @@ public class UtcAuditInterceptor : SaveChangesInterceptor
                 // CreatedAt：新增时自动填充
                 var createdAtProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "CreatedAt");
                 if (createdAtProperty?.CurrentValue == null ||
-                    (createdAtProperty.CurrentValue is DateTimeOffset dto && dto == default))
+                    (createdAtProperty.CurrentValue is DateTimeOffset dto && dto == default) ||
+                    (createdAtProperty.CurrentValue is DateTime dt && dt == default))
                 {
                     if (createdAtProperty != null)
                         createdAtProperty.CurrentValue = utcNow;

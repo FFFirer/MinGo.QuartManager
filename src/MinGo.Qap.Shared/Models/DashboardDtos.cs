@@ -11,7 +11,7 @@ public class DashboardDto
     public List<ClusterSummaryItem> Clusters { get; set; } = new();
     public List<UpcomingJobDto> UpcomingJobs { get; set; } = new();
     public JobStatusDistribution JobStatus { get; set; } = new();
-    public DateTime LastUpdated { get; set; }
+    public DateTimeOffset LastUpdated { get; set; }
 }
 
 public class ClusterSummaryItem
@@ -33,7 +33,7 @@ public class UpcomingJobDto
     public string ClusterId { get; set; } = string.Empty;
     public string ClusterName { get; set; } = string.Empty;
     public string ScheduleDescription { get; set; } = string.Empty;
-    public DateTime NextFireTime { get; set; }
+    public DateTimeOffset NextFireTime { get; set; }
 }
 
 public class JobStatusDistribution
@@ -50,12 +50,12 @@ public class ClusterDashboardDto
     public string ClusterName { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string Env { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
     public JobSummary JobSummary { get; set; } = new();
     public AgentSummary AgentSummary { get; set; } = new();
     public List<AgentInstanceDto> RecentAgents { get; set; } = new();
     public List<UpcomingJobDto> UpcomingJobs { get; set; } = new();
-    public DateTime LastUpdated { get; set; }
+    public DateTimeOffset LastUpdated { get; set; }
 }
 
 public class JobSummary

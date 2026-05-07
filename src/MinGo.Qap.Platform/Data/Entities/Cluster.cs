@@ -31,7 +31,7 @@ public class Cluster
     /// <summary>
     /// 最后心跳时间（已弃用，迁移期间保留）
     /// </summary>
-    public DateTime? LastHeartbeat { get; set; }
+    public DateTimeOffset? LastHeartbeat { get; set; }
     
     /// <summary>
     /// 状态
@@ -51,17 +51,17 @@ public class Cluster
     /// <summary>
     /// 创建时间
     /// </summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     
     /// <summary>
     /// 更新时间
     /// </summary>
-    public DateTime? UpdatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
     
     /// <summary>
     /// 删除时间（软删除）
     /// </summary>
-    public DateTime? DeletedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
     
     /// <summary>
     /// 关联的 Agent 实例
@@ -127,12 +127,12 @@ public class JobDefinition
     /// <summary>
     /// 创建时间
     /// </summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     
     /// <summary>
     /// 更新时间
     /// </summary>
-    public DateTime? UpdatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
     
     /// <summary>
     /// 关联的 Cluster

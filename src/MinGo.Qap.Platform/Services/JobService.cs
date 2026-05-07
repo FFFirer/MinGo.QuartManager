@@ -56,7 +56,7 @@ public class JobService : IJobService
             Schedule = JsonSerializer.Serialize(request.Schedule),
             Options = JsonSerializer.Serialize(request.Options),
             Status = SyncStatus.Pending,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
         _dbContext.JobDefinitions.Add(jobDef);
@@ -69,7 +69,7 @@ public class JobService : IJobService
 
             // 3. 更新为 Synced
             jobDef.Status = SyncStatus.Synced;
-            jobDef.UpdatedAt = DateTime.UtcNow;
+            jobDef.UpdatedAt = DateTimeOffset.UtcNow;
             await _dbContext.SaveChangesAsync();
 
             _logger.LogInformation("Job created successfully: {JobKey} for scheduler {SchedulerName}",
@@ -82,7 +82,7 @@ public class JobService : IJobService
             // 4. 标记为 Failed
             jobDef.Status = SyncStatus.Failed;
             jobDef.ErrorMessage = ex.Message;
-            jobDef.UpdatedAt = DateTime.UtcNow;
+            jobDef.UpdatedAt = DateTimeOffset.UtcNow;
             await _dbContext.SaveChangesAsync();
 
             _logger.LogError(ex, "Failed to create job: {JobKey} for scheduler {SchedulerName}",
@@ -198,7 +198,7 @@ public class JobService : IJobService
             }
 
             jobDef.Status = SyncStatus.Pending;
-            jobDef.UpdatedAt = DateTime.UtcNow;
+            jobDef.UpdatedAt = DateTimeOffset.UtcNow;
         }
 
         await _dbContext.SaveChangesAsync();

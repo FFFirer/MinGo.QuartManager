@@ -29,7 +29,7 @@ public class ApiResponse<T>
     /// <summary>
     /// 时间戳
     /// </summary>
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
 
     public static ApiResponse<T> Ok(T data)
     {

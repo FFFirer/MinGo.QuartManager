@@ -35,7 +35,7 @@ public class AgentInstanceDto
     /// <summary>
     /// 最后心跳时间
     /// </summary>
-    public DateTime? LastHeartbeat { get; set; }
+    public DateTimeOffset? LastHeartbeat { get; set; }
     
     /// <summary>
     /// Quartz 实例 ID
@@ -50,17 +50,17 @@ public class AgentInstanceDto
     /// <summary>
     /// 启动时间
     /// </summary>
-    public DateTime? StartedAt { get; set; }
+    public DateTimeOffset? StartedAt { get; set; }
     
     /// <summary>
     /// 创建时间
     /// </summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     
     /// <summary>
     /// 更新时间
     /// </summary>
-    public DateTime? UpdatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 }
 
 /// <summary>
@@ -117,7 +117,7 @@ public class AgentSummaryDto
     /// <summary>
     /// 最后心跳时间
     /// </summary>
-    public DateTime? LastHeartbeat { get; set; }
+    public DateTimeOffset? LastHeartbeat { get; set; }
     
     /// <summary>
     /// Agent 版本
@@ -127,12 +127,12 @@ public class AgentSummaryDto
     /// <summary>
     /// 启动时间
     /// </summary>
-    public DateTime? StartedAt { get; set; }
+    public DateTimeOffset? StartedAt { get; set; }
     
     /// <summary>
     /// 创建时间
     /// </summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// 关联的 Scheduler 数量

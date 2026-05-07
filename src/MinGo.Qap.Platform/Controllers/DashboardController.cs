@@ -49,7 +49,7 @@ public class DashboardController : ControllerBase
                     Blocked = 0,
                     Executing = 0
                 },
-                LastUpdated = DateTime.UtcNow
+                LastUpdated = DateTimeOffset.UtcNow
             };
 
             return Ok(ApiResponse<DashboardDto>.Ok(dashboard));
@@ -71,7 +71,7 @@ public class DashboardController : ControllerBase
             ClusterName = clusterId,
             Status = "Deprecated",
             Env = "N/A",
-            CreatedAt = DateTime.MinValue,
+            CreatedAt = DateTimeOffset.MinValue,
             JobSummary = new JobSummary
             {
                 Total = 0,
@@ -89,7 +89,7 @@ public class DashboardController : ControllerBase
             },
             RecentAgents = new List<AgentInstanceDto>(),
             UpcomingJobs = new List<UpcomingJobDto>(),
-            LastUpdated = DateTime.UtcNow
+            LastUpdated = DateTimeOffset.UtcNow
         };
 
         return Ok(ApiResponse<ClusterDashboardDto>.Ok(dashboard));
