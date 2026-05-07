@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { jobApi } from '../api';
 import CreateJobPanel from '../components/CreateJobPanel';
 import StatusBadge from '../components/StatusBadge';
+import JobTypeDisplay from '../components/JobTypeDisplay';
 import DataTable from '../components/DataTable';
 import PaginationBar from '../components/PaginationBar';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -179,7 +180,7 @@ const JobsPage: React.FC = () => {
     },
     {
       header: 'Type',
-      accessor: (row: JobSummaryDto) => row.jobType,
+      accessor: (row: JobSummaryDto) => <JobTypeDisplay jobType={row.jobType} />,
     },
     {
       header: 'Group',

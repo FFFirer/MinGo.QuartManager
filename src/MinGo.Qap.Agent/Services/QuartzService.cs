@@ -84,8 +84,8 @@ public class QuartzService : IQuartzService
         var scheduler = GetScheduler(schedulerName);
         _logger.LogInformation("Creating job {JobKey} on scheduler {SchedulerName}", request.JobKey, schedulerName);
 
-        // 验证 Job 类型
-        var jobType = _registry.Get(request.JobType);
+        // 验证 Job 类型（按 FullName 匹配）
+        var jobType = _registry.GetByFullName(request.JobType);
         if (jobType == null)
         {
             throw new ArgumentException($"Unknown job type: {request.JobType}");
@@ -408,31 +408,11 @@ public class QuartzService : IQuartzService
     #region Helper Methods
 
     /// <summary>
-    /// 解析 Job 类型的显示名称。
-    /// 优先级: JobDataMap > JobRegistry 类型匹配 > CLR 类型名 > "unknown"
+    /// 解析 Job 类型的 CLR 完整名称（Type.FullName）。
     /// </summary>
-    private string ResolveJobType(IJobDetail jobDetail)
+    private static string ResolveJobType(IJobDetail jobDetail)
     {
-        // 优先级 1：从 JobDataMap 获取（通过 Platform API 创建的 Job）
-        var jobType = jobDetail.JobDataMap["jobType"]?.ToString();
-        if (!string.IsNullOrEmpty(jobType))
-            return jobType;
-
-        // 优先级 2：从 JobRegistry 查找 CLR 类型匹配（通过 JobDiscoveryService 发现的 Job）
-        if (jobDetail.JobType != null)
-        {
-            var registered = _registry.GetAll()
-                .FirstOrDefault(j => j.JobTypeFullName == jobDetail.JobType.FullName);
-            if (registered != null)
-                return registered.Key;
-        }
-
-        // 优先级 3：使用 CLR 类型名（直接通过 Quartz API 注册的 Job）
-        if (jobDetail.JobType != null)
-            return jobDetail.JobType.Name;
-
-        // 最终回退
-        return "unknown";
+        return jobDetail.JobType?.FullName ?? "unknown";
     }
 
     private (string name, string group) ParseJobKey(string jobKey)

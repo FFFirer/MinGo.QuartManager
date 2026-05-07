@@ -18,6 +18,11 @@ public interface IJobRegistry
     JobTypeInfoDto? Get(string jobTypeKey);
     
     /// <summary>
+    /// 根据 CLR FullName 获取 Job 类型信息
+    /// </summary>
+    JobTypeInfoDto? GetByFullName(string fullName);
+    
+    /// <summary>
     /// 获取所有注册的 Job 类型
     /// </summary>
     IEnumerable<JobTypeInfoDto> GetAll();
@@ -86,6 +91,11 @@ public class JobRegistry : IJobRegistry
     public JobTypeInfoDto? Get(string jobTypeKey)
     {
         return _jobs.FirstOrDefault(j => j.Key == jobTypeKey);
+    }
+
+    public JobTypeInfoDto? GetByFullName(string fullName)
+    {
+        return _jobs.FirstOrDefault(j => j.JobTypeFullName == fullName);
     }
 
     public IEnumerable<JobTypeInfoDto> GetAll()

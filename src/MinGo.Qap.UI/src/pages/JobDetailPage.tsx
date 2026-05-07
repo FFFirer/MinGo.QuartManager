@@ -7,6 +7,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import PageHeader from '../components/PageHeader';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import JobParamsDisplay from '../components/JobParamsDisplay';
+import JobTypeDisplay from '../components/JobTypeDisplay';
 import type { JobDetailDto, ScheduleDto, QuartzOptionsDto, JobManifestDto } from '../types';
 
 /** Safely parse a JSON string, falling back to default on failure */
@@ -150,8 +151,8 @@ const JobDetailPage: React.FC = () => {
     }
   })();
 
-  // Get parameter definitions for this job type from manifest
-  const paramDefinitions = manifest?.jobs?.find(j => j.key === job.jobType)?.parameters;
+  // Get parameter definitions for this job type from manifest (match by FullName)
+  const paramDefinitions = manifest?.jobs?.find(j => j.jobTypeFullName === job.jobType)?.parameters;
 
   return (
     <div className="p-6">
@@ -198,7 +199,7 @@ const JobDetailPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
           <div className="text-xs text-slate-500 mb-1">Job Type</div>
-          <div className="text-sm text-slate-50">{job.jobType}</div>
+          <JobTypeDisplay jobType={job.jobType} />
         </div>
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
           <div className="text-xs text-slate-500 mb-1">Group</div>
