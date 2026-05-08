@@ -98,10 +98,18 @@ public class QuartzService : IQuartzService
         if (trigger == null)
         {
             // Schedule=None：只创建 JobDetail，不创建 Trigger
-            // storeNonDurableWhileAwaitingScheduling: true 确保即使非持久化 Job
-            // 也能在没有 Trigger 时保留，直到后续添加 Trigger
-            await scheduler.AddJob(jobDetail, replace: true, storeNonDurableWhileAwaitingScheduling: true, cancellationToken: default);
-            _logger.LogInformation("Job created without trigger (Schedule=None): {JobKey}", request.JobKey);
+            // 仅当 storeDurable=false 时使用 storeNonDurableWhileAwaitingScheduling，
+            // 确保非持久化 Job 也能在没有 Trigger 时保留，直到后续添加 Trigger
+            var isDurable = request.Options?.StoreDurable == true;
+            if (isDurable)
+            {
+                await scheduler.AddJob(jobDetail, replace: true, cancellationToken: default);
+            }
+            else
+            {
+                await scheduler.AddJob(jobDetail, replace: true, storeNonDurableWhileAwaitingScheduling: true, cancellationToken: default);
+            }
+            _logger.LogInformation("Job created without trigger (Schedule=None): {JobKey} (Durable={IsDurable})", request.JobKey, isDurable);
         }
         else
         {

@@ -99,6 +99,7 @@ const CreateJobPage: React.FC = () => {
   const [isCustomGroup, setIsCustomGroup] = useState(false);
   const [customGroup, setCustomGroup] = useState('');
   const [jobName, setJobName] = useState('');
+  const NAME_REGEX = /^[a-zA-Z0-9\-_]*$/;
   const [selectedJobType, setSelectedJobType] = useState('');
   const [params, setParams] = useState<Record<string, any>>({});
   const [scheduleType, setScheduleType] = useState<ScheduleType>('Cron');
@@ -184,7 +185,17 @@ const CreateJobPage: React.FC = () => {
   // Reset params and schedule when job type changes
   const handleJobTypeChange = (key: string) => {
     setSelectedJobType(key);
-    setParams({});
+    // Prefill default values from manifest
+    const jobType = manifest?.jobs?.find((j: JobTypeInfoDto) => j.key === key);
+    const defaultParams: Record<string, any> = {};
+    if (jobType) {
+      jobType.parameters.forEach((p: ParameterInfoDto) => {
+        if (p.default !== undefined && p.default !== null) {
+          defaultParams[p.name] = p.default;
+        }
+      });
+    }
+    setParams(defaultParams);
     setErrors({});
     setJobTypeDropdownOpen(false);
   };
@@ -229,8 +240,8 @@ const CreateJobPage: React.FC = () => {
 
     if (!jobName.trim()) {
       newErrors.jobName = 'Job name is required';
-    } else if (jobName.includes('.')) {
-      newErrors.jobName = "Job name cannot contain '.' character";
+    } else if (!NAME_REGEX.test(jobName)) {
+      newErrors.jobName = 'Job name只能包含字母、数字、-和_';
     }
 
     if (!selectedJobType) {
@@ -339,7 +350,30 @@ const CreateJobPage: React.FC = () => {
         <section className="bg-slate-800 rounded-lg border border-slate-700 p-5">
           <h2 className="text-lg font-semibold text-slate-50 mb-4">Job Identity</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Group */}
+            {/* Job Name (first column) */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                Job Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={jobName}
+                onChange={(e) => {
+                  setJobName(e.target.value);
+                  if (errors.jobName) setErrors((p) => { const n = { ...p }; delete n.jobName; return n; });
+                }}
+                placeholder="e.g., daily-sync"
+                className={`input ${errors.jobName ? 'border-red-500 focus:ring-red-500' : ''}`}
+              />
+              {errors.jobName && (
+                <p className="mt-1 text-xs text-red-400">{errors.jobName}</p>
+              )}
+              <p className="mt-1 text-xs text-slate-500">
+                Letters, digits, hyphens and underscores only
+              </p>
+            </div>
+
+            {/* Group (second column) */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">Group</label>
               {!isCustomGroup ? (
@@ -383,29 +417,6 @@ const CreateJobPage: React.FC = () => {
               )}
               <p className="mt-1 text-xs text-slate-500">
                 Jobs in the same group can be managed together
-              </p>
-            </div>
-
-            {/* Job Name */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                Job Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={jobName}
-                onChange={(e) => {
-                  setJobName(e.target.value);
-                  if (errors.jobName) setErrors((p) => { const n = { ...p }; delete n.jobName; return n; });
-                }}
-                placeholder="e.g., daily-sync"
-                className={`input ${errors.jobName ? 'border-red-500 focus:ring-red-500' : ''}`}
-              />
-              {errors.jobName && (
-                <p className="mt-1 text-xs text-red-400">{errors.jobName}</p>
-              )}
-              <p className="mt-1 text-xs text-slate-500">
-                Unique identifier within the group. Dots are not allowed.
               </p>
             </div>
           </div>

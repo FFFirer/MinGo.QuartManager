@@ -4,8 +4,8 @@
 
 This specification defines the full-page Job creation form, including group selection, job type selection, parameter editing, schedule configuration, and options.
 
-**Status:** New  
-**Last Updated:** 2026-05-07
+**Status:** Updated  
+**Last Updated:** 2026-05-08
 
 ---
 
@@ -26,8 +26,13 @@ The system SHALL provide a dedicated route `/schedulers/{schedulerName}/jobs/cre
 - **WHEN** user is on the Create Job page
 - **THEN** system shows a "← Back to Jobs" link that navigates back to the Jobs list
 
-### Requirement: User can select or enter Job Group
-The form SHALL provide a Group field that allows selecting from existing groups or entering a custom group name.
+### Requirement: User can enter Job Identity (Name and Group)
+The form SHALL display Name in the left column and Group in the right column. The Group field allows selecting from existing groups or entering a custom group name.
+
+#### Scenario: Name field appears before Group field
+- **WHEN** user is on the Create Job page
+- **THEN** the Job Identity section SHALL show Name on the left column and Group on the right column
+- **AND** the Full Job Key preview shows as `{group}.{name}`
 
 #### Scenario: Group dropdown shows existing groups
 - **WHEN** Create Job page loads
@@ -42,16 +47,13 @@ The form SHALL provide a Group field that allows selecting from existing groups 
 - **WHEN** user selects "Create New" in the group dropdown
 - **THEN** a text input appears for entering a custom group name
 
-### Requirement: User can enter Job Name
-The form SHALL provide a required text input for the job name.
-
 #### Scenario: Job name is required
 - **WHEN** user submits the form without entering a job name
 - **THEN** system shows validation error "Job name is required"
 
-#### Scenario: Job name cannot contain dots
-- **WHEN** user enters a job name containing dots
-- **THEN** system shows validation error "Job name cannot contain '.' character"
+#### Scenario: Job name contains invalid characters
+- **WHEN** user enters a job name containing characters other than letters, digits, hyphens, or underscores
+- **THEN** system shows validation error "Job name只能包含字母、数字、-和_"
 - **AND** submission is blocked
 
 ### Requirement: User can select Job Type from manifest
@@ -87,10 +89,17 @@ The form SHALL render parameter fields based on their type from the manifest.
 - **THEN** it renders as a textarea with JSON validation (red border on invalid JSON)
 
 ### Requirement: Required parameters are validated
-The form SHALL validate that all required parameters (marked with `required: true` in manifest) have values before submission.
+The form SHALL validate that all required parameters (marked with `required: true` in manifest) have values before submission. Parameters with default values SHALL be pre-filled and not trigger validation errors when left unchanged.
+
+#### Scenario: Required parameter with default value passes validation when unchanged
+- **WHEN** a required parameter has a `default` value defined in the manifest
+- **AND** user selects the job type (which pre-fills the default)
+- **AND** user does not modify the parameter value
+- **THEN** system pre-fills `params[name] = default` automatically
+- **AND** validation passes without requiring user interaction
 
 #### Scenario: Required parameter missing shows error
-- **WHEN** user submits the form with a required parameter left empty
+- **WHEN** user submits the form with a required parameter that has no default value and is left empty
 - **THEN** system shows inline error below the empty required field
 - **AND** submission is blocked
 
