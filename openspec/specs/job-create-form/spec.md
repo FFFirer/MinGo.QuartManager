@@ -99,7 +99,7 @@ The form SHALL validate that all required parameters (marked with `required: tru
 - **THEN** its label has a red asterisk `*` suffix
 
 ### Requirement: User can configure schedule
-The form SHALL support three schedule types: Cron, Interval, and Once.
+The form SHALL support four schedule types: Cron, Interval, Once, and None.
 
 #### Scenario: Cron schedule with presets
 - **WHEN** schedule type is "Cron"
@@ -121,8 +121,18 @@ The form SHALL support three schedule types: Cron, Interval, and Once.
 - **THEN** system shows a datetime-local input for execution time
 - **AND** leaving it empty means run immediately
 
+#### Scenario: None schedule hides trigger fields
+- **WHEN** schedule type is "None"
+- **THEN** system hides all trigger configuration fields (cron, interval, datetime)
+- **AND** shows info text: "Job will be created without a trigger. Use 'Trigger' action to fire manually."
+
 ### Requirement: User can configure options
-The form SHALL support Quartz options: Disallow Concurrent Execution and Misfire Policy.
+The form SHALL support Quartz options: StoreDurable, Disallow Concurrent Execution, and Misfire Policy.
+
+#### Scenario: StoreDurable checkbox
+- **WHEN** user is on the Create Job page
+- **THEN** system shows a "持久化 Job" checkbox in the Options section
+- **AND** it is unchecked by default
 
 #### Scenario: Disallow concurrent execution toggle
 - **WHEN** user toggles "Disallow Concurrent Execution"
@@ -167,3 +177,13 @@ The form SHALL submit a valid `CreateJobRequest` to the API.
 - **WHEN** API returns HTTP 409 with message "Job已存在"
 - **THEN** system shows warning toast "Job已存在，无需重复创建"
 - **AND** stays on the Create Job page
+
+#### Scenario: Successful submission with None schedule and non-durable (200)
+- **WHEN** user selects Schedule="None", StoreDurable=unchecked, fills required fields and clicks "Create Job"
+- **THEN** system sends POST with `schedule.type = "None"` and `options.storeDurable = false`
+- **AND** Agent creates the job without trigger, using `storeNonDurableWhileAwaitingScheduling: true`
+
+#### Scenario: Successful submission with None schedule and durable (200)
+- **WHEN** user selects Schedule="None", checks "持久化 Job", fills required fields and clicks "Create Job"
+- **THEN** system sends POST with `schedule.type = "None"` and `options.storeDurable = true`
+- **AND** Agent creates the job without trigger, with StoreDurable=true

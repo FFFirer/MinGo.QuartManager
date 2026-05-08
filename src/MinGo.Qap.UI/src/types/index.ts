@@ -1,6 +1,6 @@
 // Enums
 export type SyncStatus = 'Pending' | 'Synced' | 'Failed' | 'Timeout';
-export type ScheduleType = 'Once' | 'Cron' | 'Interval';
+export type ScheduleType = 'Once' | 'Cron' | 'Interval' | 'None';
 export type MisfirePolicy = 'FireAndProceed' | 'IgnoreMisfire' | 'DoNothing';
 
 // Common
@@ -183,6 +183,7 @@ export interface ScheduleDto {
 
 export interface QuartzOptionsDto {
   disallowConcurrentExecution: boolean;
+  storeDurable: boolean;
   misfirePolicy: MisfirePolicy;
 }
 

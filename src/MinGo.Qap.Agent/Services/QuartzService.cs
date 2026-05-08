@@ -95,22 +95,32 @@ public class QuartzService : IQuartzService
         var jobDetail = _converter.ConvertToDetail(request, jobType);
         var trigger = _converter.ConvertToTrigger(request.JobKey, request.Schedule);
 
-
-        // 1. 替换/创建 JobDetail（幂等，replace: true）
-        await scheduler.AddJob(jobDetail, replace: true, cancellationToken: default);
-
-        // 2. 替换 Trigger
-        var (_, group) = ParseJobKey(request.JobKey);
-        var triggerName = $"{request.JobKey.Split('.').Last()}_trigger";
-        var triggerKey = new TriggerKey(triggerName, group);
-        var replaced = await scheduler.RescheduleJob(triggerKey, trigger, cancellationToken: default);
-        if (replaced == null)
+        if (trigger == null)
         {
-            // 不存在旧 trigger，新增
-            await scheduler.ScheduleJob(trigger, cancellationToken: default);
+            // Schedule=None：只创建 JobDetail，不创建 Trigger
+            // storeNonDurableWhileAwaitingScheduling: true 确保即使非持久化 Job
+            // 也能在没有 Trigger 时保留，直到后续添加 Trigger
+            await scheduler.AddJob(jobDetail, replace: true, storeNonDurableWhileAwaitingScheduling: true, cancellationToken: default);
+            _logger.LogInformation("Job created without trigger (Schedule=None): {JobKey}", request.JobKey);
         }
+        else
+        {
+            // 1. 替换/创建 JobDetail（幂等，replace: true）
+            await scheduler.AddJob(jobDetail, replace: true, cancellationToken: default);
 
-        _logger.LogInformation("Job replaced successfully: {JobKey}", request.JobKey);
+            // 2. 替换 Trigger
+            var (_, group) = ParseJobKey(request.JobKey);
+            var triggerName = $"{request.JobKey.Split('.').Last()}_trigger";
+            var triggerKey = new TriggerKey(triggerName, group);
+            var replaced = await scheduler.RescheduleJob(triggerKey, trigger, cancellationToken: default);
+            if (replaced == null)
+            {
+                // 不存在旧 trigger，新增
+                await scheduler.ScheduleJob(trigger, cancellationToken: default);
+            }
+
+            _logger.LogInformation("Job replaced successfully: {JobKey}", request.JobKey);
+        }
 
         return await GetJobAsync(schedulerName, request.JobKey)
             ?? throw new InvalidOperationException("Failed to retrieve replaced job");
@@ -461,6 +471,7 @@ public class QuartzService : IQuartzService
 
     private string GetScheduleType(ITrigger? trigger)
     {
+        if (trigger == null) return "none";
         return trigger switch
         {
             ICronTrigger => "cron",

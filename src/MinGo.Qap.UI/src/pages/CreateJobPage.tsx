@@ -20,6 +20,7 @@ const SCHEDULE_TYPES = [
   { value: 'Once' as ScheduleType, label: 'Once', description: 'Run one time' },
   { value: 'Cron' as ScheduleType, label: 'Cron', description: 'Cron expression' },
   { value: 'Interval' as ScheduleType, label: 'Interval', description: 'Repeat interval' },
+  { value: 'None' as ScheduleType, label: 'None', description: 'No trigger' },
 ];
 
 const MISFIRE_POLICIES = [
@@ -107,6 +108,7 @@ const CreateJobPage: React.FC = () => {
   const [intervalSeconds, setIntervalSeconds] = useState(0);
   const [runAt, setRunAt] = useState('');
   const [disallowConcurrent, setDisallowConcurrent] = useState(false);
+  const [storeDurable, setStoreDurable] = useState(false);
   const [misfirePolicy, setMisfirePolicy] = useState('FireAndProceed');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [jobTypeDropdownOpen, setJobTypeDropdownOpen] = useState(false);
@@ -162,6 +164,7 @@ const CreateJobPage: React.FC = () => {
       const parsedOptions = tryParseJson<QuartzOptionsDto>(copySource.options, {} as QuartzOptionsDto);
       if (parsedOptions) {
         setDisallowConcurrent(parsedOptions.disallowConcurrentExecution ?? false);
+        setStoreDurable(parsedOptions.storeDurable ?? false);
         if (parsedOptions.misfirePolicy) setMisfirePolicy(parsedOptions.misfirePolicy);
       }
     }
@@ -178,12 +181,24 @@ const CreateJobPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Reset params when job type changes
+  // Reset params and schedule when job type changes
   const handleJobTypeChange = (key: string) => {
     setSelectedJobType(key);
     setParams({});
     setErrors({});
     setJobTypeDropdownOpen(false);
+  };
+
+  // Reset storeDurable when schedule type changes from None
+  const handleScheduleTypeChange = (type: ScheduleType) => {
+    setScheduleType(type);
+    setErrors((p) => {
+      const n = { ...p };
+      delete n.cronExpression;
+      delete n.interval;
+      return n;
+    });
+    // Schedule 从 None 切到其他类型时，不清空 storeDurable（独立选项）
   };
 
   const handleParamChange = (name: string, value: any) => {
@@ -256,6 +271,9 @@ const CreateJobPage: React.FC = () => {
 
     let schedule: ScheduleDto;
     switch (scheduleType) {
+      case 'None':
+        schedule = { type: 'None' };
+        break;
       case 'Cron':
         schedule = { type: 'Cron', cronExpression: cronExpression.trim() };
         break;
@@ -276,6 +294,7 @@ const CreateJobPage: React.FC = () => {
 
     const options: QuartzOptionsDto = {
       disallowConcurrentExecution: disallowConcurrent,
+      storeDurable,
       misfirePolicy: misfirePolicy as any,
     };
 
@@ -621,7 +640,7 @@ const CreateJobPage: React.FC = () => {
               <button
                 key={t.value}
                 type="button"
-                onClick={() => { setScheduleType(t.value); setErrors((p) => { const n = { ...p }; delete n.cronExpression; delete n.interval; return n; }); }}
+                onClick={() => handleScheduleTypeChange(t.value)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   scheduleType === t.value
                     ? 'bg-blue-500 text-white'
@@ -632,6 +651,18 @@ const CreateJobPage: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* None */}
+          {scheduleType === 'None' && (
+            <div className="p-4 bg-slate-700/30 rounded-lg border border-slate-600">
+              <p className="text-sm text-slate-300">
+                Job will be created without a trigger. Use <span className="text-blue-400 font-mono">Trigger</span> action to fire manually.
+              </p>
+              <p className="text-xs text-slate-500 mt-2">
+                不创建 Trigger，Job 会保留在 Scheduler 中，直到后续添加 Trigger。
+              </p>
+            </div>
+          )}
 
           {/* Cron */}
           {scheduleType === 'Cron' && (
@@ -742,6 +773,21 @@ const CreateJobPage: React.FC = () => {
         <section className="bg-slate-800 rounded-lg border border-slate-700 p-5">
           <h2 className="text-lg font-semibold text-slate-50 mb-4">Options</h2>
           <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+              <div>
+                <div className="font-medium text-slate-50">持久化 Job (StoreDurable)</div>
+                <div className="text-sm text-slate-400">
+                  Job 在没有 Trigger 时也保留在 Scheduler 中，不会自动删除
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={storeDurable}
+                onChange={(e) => setStoreDurable(e.target.checked)}
+                className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500"
+              />
+            </div>
+
             <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
               <div>
                 <div className="font-medium text-slate-50">Disallow Concurrent Execution</div>

@@ -39,7 +39,12 @@ public class QuartzOptionsDto
     /// 禁止并发执行
     /// </summary>
     public bool DisallowConcurrentExecution { get; set; } = false;
-    
+
+    /// <summary>
+    /// 持久化 Job：即使没有 Trigger 也保留在 Scheduler 中
+    /// </summary>
+    public bool StoreDurable { get; set; } = false;
+
     /// <summary>
     /// Misfire 策略
     /// </summary>

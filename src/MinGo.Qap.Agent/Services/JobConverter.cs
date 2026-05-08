@@ -14,12 +14,12 @@ public interface IJobConverter
     /// 将创建请求转换为 JobDetail
     /// </summary>
     IJobDetail ConvertToDetail(CreateJobRequest request, JobTypeInfoDto jobType);
-    
+
     /// <summary>
-    /// 将调度配置转换为 Trigger
+    /// 将调度配置转换为 Trigger。当 Schedule 类型为 "none" 时返回 null。
     /// </summary>
-    ITrigger ConvertToTrigger(string jobKey, ScheduleDto schedule);
-    
+    ITrigger? ConvertToTrigger(string jobKey, ScheduleDto schedule);
+
     /// <summary>
     /// 转换 Misfire 策略
     /// </summary>
@@ -72,6 +72,12 @@ public class JobConverter : IJobConverter
         jobBuilder.WithIdentity(name, group)
             .UsingJobData(jobDataMap);
 
+        // 持久化 Job
+        if (request.Options?.StoreDurable == true)
+        {
+            jobBuilder.StoreDurably(true);
+        }
+
         // 并发控制
         if (request.Options?.DisallowConcurrentExecution == true)
         {
@@ -83,10 +89,16 @@ public class JobConverter : IJobConverter
         return jobBuilder.Build();
     }
 
-    public ITrigger ConvertToTrigger(string jobKey, ScheduleDto schedule)
+    public ITrigger? ConvertToTrigger(string jobKey, ScheduleDto schedule)
     {
         var (name, group) = ParseJobKey(jobKey);
         
+        // Schedule=None：不创建 Trigger
+        if (string.Equals(schedule.Type, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
         // Trigger Key: 与 Job 相同 group，名称加后缀
         var triggerName = $"{name}_trigger";
 
