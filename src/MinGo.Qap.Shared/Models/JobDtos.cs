@@ -111,6 +111,9 @@ public class JobDefinitionDto
     public string? ErrorMessage { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
+
+    /// <summary>关联的 Trigger 列表（Agent 实时数据）</summary>
+    public List<TriggerSummaryDto>? Triggers { get; set; }
 }
 
 /// <summary>
@@ -141,4 +144,7 @@ public class JobDetailDto
     public Dictionary<string, object> Params { get; set; } = new();
     public DateTime? NextFireTime { get; set; }
     public DateTime? PreviousFireTime { get; set; }
+
+    /// <summary>关联的 Trigger 列表</summary>
+    public List<TriggerSummaryDto> Triggers { get; set; } = new();
 }

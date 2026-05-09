@@ -8,7 +8,9 @@ import PageHeader from '../components/PageHeader';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import JobParamsDisplay from '../components/JobParamsDisplay';
 import JobTypeDisplay from '../components/JobTypeDisplay';
-import type { JobDetailDto, JobKeyDto, ScheduleDto, QuartzOptionsDto, JobManifestDto } from '../types';
+import DataTable from '../components/DataTable';
+import StatusBadge from '../components/StatusBadge';
+import type { JobDetailDto, JobKeyDto, ScheduleDto, QuartzOptionsDto, TriggerSummaryDto } from '../types';
 
 /** Safely parse a JSON string, falling back to default on failure */
 function tryParseJson<T>(raw: string, fallback: T): T {
@@ -49,6 +51,7 @@ const JobDetailPage: React.FC = () => {
         params: tryParseJson<Record<string, any>>(dto.params, {}),
         nextFireTime: undefined,
         previousFireTime: undefined,
+        triggers: (dto.triggers ?? []) as TriggerSummaryDto[],
       } as JobDetailDto;
     },
     enabled: !!decodedName,
@@ -157,6 +160,64 @@ const JobDetailPage: React.FC = () => {
   // Get parameter definitions for this job type from manifest (match by FullName)
   const paramDefinitions = manifest?.jobs?.find(j => j.jobTypeQualifiedName?.fullName === job.jobType?.fullName)?.parameters;
 
+  const triggerStateColor = (state: string) => {
+    switch (state) {
+      case 'normal': return 'text-green-400';
+      case 'paused': return 'text-amber-400';
+      case 'blocked': return 'text-red-400';
+      case 'complete': return 'text-blue-400';
+      case 'error': return 'text-red-500';
+      default: return 'text-slate-400';
+    }
+  };
+
+  const triggerTypeDisplay = (trigger: TriggerSummaryDto) => {
+    switch (trigger.type) {
+      case 'cron': return <span className="text-xs font-mono">{trigger.cronExpression}</span>;
+      case 'interval': return `Every ${trigger.intervalSeconds}s`;
+      case 'once': return 'Once';
+      case 'calendar': return 'Calendar';
+      case 'daily': return 'Daily';
+      default: return trigger.type;
+    }
+  };
+
+  const triggerColumns: any[] = [
+    {
+      header: 'Name',
+      accessor: (row: TriggerSummaryDto) => row.name,
+      sortable: true,
+    },
+    {
+      header: 'Group',
+      accessor: (row: TriggerSummaryDto) => row.group,
+    },
+    {
+      header: 'Type',
+      accessor: (row: TriggerSummaryDto) => triggerTypeDisplay(row),
+    },
+    {
+      header: 'State',
+      accessor: (row: TriggerSummaryDto) => (
+        <span className={`text-sm font-medium ${triggerStateColor(row.state)}`}>
+          {row.state}
+        </span>
+      ),
+    },
+    {
+      header: 'Next Fire',
+      accessor: (row: TriggerSummaryDto) => row.nextFireTime ? new Date(row.nextFireTime).toLocaleString() : '-',
+    },
+    {
+      header: 'Previous Fire',
+      accessor: (row: TriggerSummaryDto) => row.previousFireTime ? new Date(row.previousFireTime).toLocaleString() : '-',
+    },
+    {
+      header: 'Priority',
+      accessor: (row: TriggerSummaryDto) => row.priority,
+    },
+  ];
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -245,6 +306,20 @@ const JobDetailPage: React.FC = () => {
           paramDefinitions={paramDefinitions}
           searchable={true}
         />
+      )}
+
+      {/* Triggers */}
+      {job.triggers && job.triggers.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-medium text-slate-200 mb-3">Triggers ({job.triggers.length})</h3>
+          <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+            <DataTable
+              columns={triggerColumns}
+              data={job.triggers}
+              emptyMessage="No triggers"
+            />
+          </div>
+        </div>
       )}
 
       {/* Delete Confirmation */}

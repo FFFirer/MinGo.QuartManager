@@ -219,6 +219,7 @@ export interface JobDefinitionDto {
   errorMessage?: string;
   createdAt: string;
   updatedAt?: string;
+  triggers?: TriggerSummaryDto[];
 }
 
 export interface JobSummaryDto {
@@ -241,6 +242,26 @@ export interface JobDetailDto {
   params: Record<string, any>;
   nextFireTime?: string;
   previousFireTime?: string;
+  triggers: TriggerSummaryDto[];
+}
+
+export interface TriggerSummaryDto {
+  name: string;
+  group: string;
+  type: string;
+  state: string;
+  cronExpression?: string;
+  intervalSeconds?: number;
+  repeatCount?: number;
+  timesTriggered: number;
+  calendarName?: string;
+  description?: string;
+  priority: number;
+  startTime?: string;
+  endTime?: string;
+  previousFireTime?: string;
+  nextFireTime?: string;
+  finalFireTime?: string;
 }
 
 export interface JobQuery extends PagedQuery {

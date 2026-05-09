@@ -257,7 +257,7 @@ public class QuartzService : IQuartzService
             return null;
         }
 
-        // 获取 Trigger
+        // 获取所有 Trigger
         var triggers = await scheduler.GetTriggersOfJob(jobKeyObj);
         var trigger = triggers.FirstOrDefault();
 
@@ -265,6 +265,14 @@ public class QuartzService : IQuartzService
         var triggerState = trigger != null
             ? await scheduler.GetTriggerState(trigger.Key)
             : TriggerState.None;
+
+        // 构建所有 Trigger 的摘要列表
+        var triggerList = new List<TriggerSummaryDto>();
+        foreach (var t in triggers)
+        {
+            var state = await scheduler.GetTriggerState(t.Key);
+            triggerList.Add(MapToTriggerSummaryDto(t, state));
+        }
 
         // 构建 DTO
         return new JobDetailDto
@@ -279,7 +287,8 @@ public class QuartzService : IQuartzService
                 kvp => kvp.Key,
                 kvp => kvp.Value),
             Schedule = ExtractSchedule(trigger),
-            Options = ExtractOptions(jobDetail)
+            Options = ExtractOptions(jobDetail),
+            Triggers = triggerList
         };
     }
 
@@ -444,7 +453,7 @@ public class QuartzService : IQuartzService
             : new JobTypeQualifiedName { FullName = "unknown" };
     }
 
-    private string MapTriggerState(TriggerState state)
+    private static string MapTriggerState(TriggerState state)
     {
         return state switch
         {
@@ -497,6 +506,62 @@ public class QuartzService : IQuartzService
             DisallowConcurrentExecution = disallowConcurrent,
             MisfirePolicy = "FireAndProceed" // 简化，V1 不存储实际策略
         };
+    }
+
+    private static TriggerSummaryDto MapToTriggerSummaryDto(ITrigger trigger, TriggerState state)
+    {
+        var dto = new TriggerSummaryDto
+        {
+            Name = trigger.Key.Name,
+            Group = trigger.Key.Group,
+            State = MapTriggerState(state),
+            Description = trigger.Description ?? string.Empty,
+            CalendarName = trigger.CalendarName,
+            Priority = trigger.Priority,
+            StartTime = trigger.StartTimeUtc != DateTimeOffset.MinValue ? trigger.StartTimeUtc : null,
+            EndTime = trigger.EndTimeUtc.HasValue ? trigger.EndTimeUtc : null,
+            PreviousFireTime = trigger.GetPreviousFireTimeUtc(),
+            NextFireTime = trigger.GetNextFireTimeUtc(),
+            FinalFireTime = trigger.FinalFireTimeUtc
+        };
+
+        switch (trigger)
+        {
+            case ICronTrigger cron:
+                dto.Type = "cron";
+                dto.CronExpression = cron.CronExpressionString;
+                break;
+
+            case ISimpleTrigger simple:
+                if (simple.RepeatCount == 0)
+                {
+                    dto.Type = "once";
+                }
+                else
+                {
+                    dto.Type = "interval";
+                    dto.IntervalSeconds = simple.RepeatInterval != default
+                        ? (int)simple.RepeatInterval.TotalSeconds
+                        : null;
+                    dto.RepeatCount = simple.RepeatCount;
+                }
+                dto.TimesTriggered = simple.TimesTriggered;
+                break;
+
+            case ICalendarIntervalTrigger _:
+                dto.Type = "calendar";
+                break;
+
+            case IDailyTimeIntervalTrigger _:
+                dto.Type = "daily";
+                break;
+
+            default:
+                dto.Type = "unknown";
+                break;
+        }
+
+        return dto;
     }
 
     #endregion

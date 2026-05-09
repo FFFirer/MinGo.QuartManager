@@ -168,7 +168,8 @@ public class JobService : IJobService
                 Params = JsonSerializer.Serialize(job.Params),
                 Schedule = JsonSerializer.Serialize(job.Schedule),
                 Options = JsonSerializer.Serialize(job.Options),
-                Status = job.Status
+                Status = job.Status,
+                Triggers = job.Triggers
             };
         }
         catch (AgentException)
