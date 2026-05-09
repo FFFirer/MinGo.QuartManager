@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type {
   ApiResponse,
+  JobKeyDto,
   JobSummaryDto,
   JobDefinitionDto,
   CreateJobRequest,
@@ -75,33 +76,40 @@ export const schedulerApi = {
     api.get<ApiResponse<SchedulerAgentDto[]>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/agents`).then(r => r.data),
 };
 
-// Job APIs (now using schedulerName instead of clusterId)
+// Helper: build job URL path from JobKeyDto
+function buildJobUrlPath(name: string, group?: string): string {
+  return group && group !== 'DEFAULT'
+    ? `${encodeURIComponent(name)}/${encodeURIComponent(group)}`
+    : encodeURIComponent(name);
+}
+
+// Job APIs
 export const jobApi = {
   getAll: (schedulerName: string, page = 1, pageSize = 20, status?: string, group?: string, keyword?: string) =>
     api.get<ApiResponse<PagedResponse<JobSummaryDto>>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs`, {
       params: { page, pageSize, status, group, keyword }
     }).then(r => r.data),
 
-  get: (schedulerName: string, jobKey: string) =>
-    api.get<ApiResponse<JobDefinitionDto>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${encodeURIComponent(jobKey)}`).then(r => r.data),
+  get: (schedulerName: string, jobKey: JobKeyDto) =>
+    api.get<ApiResponse<JobDefinitionDto>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${buildJobUrlPath(jobKey.name, jobKey.group)}`).then(r => r.data),
 
   create: (schedulerName: string, data: CreateJobRequest) =>
     api.post<ApiResponse<JobDefinitionDto>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs`, data).then(r => r.data),
 
-  update: (schedulerName: string, jobKey: string, data: UpdateJobRequest) =>
-    api.put<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${encodeURIComponent(jobKey)}`, data).then(r => r.data),
+  update: (schedulerName: string, jobKey: JobKeyDto, data: UpdateJobRequest) =>
+    api.put<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${buildJobUrlPath(jobKey.name, jobKey.group)}`, data).then(r => r.data),
 
-  delete: (schedulerName: string, jobKey: string) =>
-    api.delete<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${encodeURIComponent(jobKey)}`).then(r => r.data),
+  delete: (schedulerName: string, jobKey: JobKeyDto) =>
+    api.delete<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${buildJobUrlPath(jobKey.name, jobKey.group)}`).then(r => r.data),
 
-  trigger: (schedulerName: string, jobKey: string) =>
-    api.post<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${encodeURIComponent(jobKey)}/trigger`).then(r => r.data),
+  trigger: (schedulerName: string, jobKey: JobKeyDto) =>
+    api.post<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${buildJobUrlPath(jobKey.name, jobKey.group)}/trigger`).then(r => r.data),
 
-  pause: (schedulerName: string, jobKey: string) =>
-    api.post<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${encodeURIComponent(jobKey)}/pause`).then(r => r.data),
+  pause: (schedulerName: string, jobKey: JobKeyDto) =>
+    api.post<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${buildJobUrlPath(jobKey.name, jobKey.group)}/pause`).then(r => r.data),
 
-  resume: (schedulerName: string, jobKey: string) =>
-    api.post<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${encodeURIComponent(jobKey)}/resume`).then(r => r.data),
+  resume: (schedulerName: string, jobKey: JobKeyDto) =>
+    api.post<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${buildJobUrlPath(jobKey.name, jobKey.group)}/resume`).then(r => r.data),
 };
 
 // Manifest APIs

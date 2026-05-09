@@ -8,7 +8,7 @@ import PageHeader from '../components/PageHeader';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import JobParamsDisplay from '../components/JobParamsDisplay';
 import JobTypeDisplay from '../components/JobTypeDisplay';
-import type { JobDetailDto, ScheduleDto, QuartzOptionsDto, JobManifestDto } from '../types';
+import type { JobDetailDto, JobKeyDto, ScheduleDto, QuartzOptionsDto, JobManifestDto } from '../types';
 
 /** Safely parse a JSON string, falling back to default on failure */
 function tryParseJson<T>(raw: string, fallback: T): T {
@@ -22,25 +22,26 @@ function tryParseJson<T>(raw: string, fallback: T): T {
 }
 
 const JobDetailPage: React.FC = () => {
-  const { schedulerName, jobKey } = useParams<{ schedulerName: string; jobKey: string }>();
+  const { schedulerName, name, group } = useParams<{ schedulerName: string; name: string; group?: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const decodedSchedulerName = schedulerName ? decodeURIComponent(schedulerName) : '';
-  const decodedJobKey = jobKey ? decodeURIComponent(jobKey) : '';
+  const decodedName = name ? decodeURIComponent(name) : '';
+  const decodedGroup = group ? decodeURIComponent(group) : 'DEFAULT';
+  const jobKey: JobKeyDto = { name: decodedName, group: decodedGroup };
 
   const { data: job, isLoading, error } = useQuery({
-    queryKey: ['job', decodedSchedulerName, decodedJobKey],
+    queryKey: ['job', decodedSchedulerName, decodedName, decodedGroup],
     queryFn: async () => {
-      const response = await jobApi.get(decodedSchedulerName, decodedJobKey);
+      const response = await jobApi.get(decodedSchedulerName, jobKey);
       if (!response.success) throw new Error(response.errorMessage);
       const dto = response.data!;
       // Deserialize string fields from JobDefinitionDto to match JobDetailDto shape
       return {
         jobKey: dto.jobKey,
         jobType: dto.jobType,
-        group: '',
         status: dto.status,
         description: '',
         schedule: tryParseJson<ScheduleDto>(dto.schedule, {} as ScheduleDto),
@@ -50,7 +51,7 @@ const JobDetailPage: React.FC = () => {
         previousFireTime: undefined,
       } as JobDetailDto;
     },
-    enabled: !!decodedSchedulerName && !!decodedJobKey,
+    enabled: !!decodedName,
   });
 
   // Fetch manifest for parameter metadata
@@ -66,28 +67,28 @@ const JobDetailPage: React.FC = () => {
   });
 
   const triggerJob = useMutation({
-    mutationFn: () => jobApi.trigger(decodedSchedulerName, decodedJobKey),
+    mutationFn: () => jobApi.trigger(decodedSchedulerName, jobKey),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['job', decodedSchedulerName, decodedJobKey] });
+      queryClient.invalidateQueries({ queryKey: ['job', decodedSchedulerName, decodedName, decodedGroup] });
     },
   });
 
   const pauseJob = useMutation({
-    mutationFn: () => jobApi.pause(decodedSchedulerName, decodedJobKey),
+    mutationFn: () => jobApi.pause(decodedSchedulerName, jobKey),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['job', decodedSchedulerName, decodedJobKey] });
+      queryClient.invalidateQueries({ queryKey: ['job', decodedSchedulerName, decodedName, decodedGroup] });
     },
   });
 
   const resumeJob = useMutation({
-    mutationFn: () => jobApi.resume(decodedSchedulerName, decodedJobKey),
+    mutationFn: () => jobApi.resume(decodedSchedulerName, jobKey),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['job', decodedSchedulerName, decodedJobKey] });
+      queryClient.invalidateQueries({ queryKey: ['job', decodedSchedulerName, decodedName, decodedGroup] });
     },
   });
 
   const deleteJob = useMutation({
-    mutationFn: () => jobApi.delete(decodedSchedulerName, decodedJobKey),
+    mutationFn: () => jobApi.delete(decodedSchedulerName, jobKey),
     onSuccess: () => {
       navigate(`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs`);
     },
@@ -124,6 +125,8 @@ const JobDetailPage: React.FC = () => {
 
   if (!job) return null;
 
+  const displayJobKey = `${decodedGroup}.${decodedName}`;
+
   const triggerStateDisplay = (() => {
     switch (job.status) {
       case 'normal': return { label: 'Normal', color: 'text-green-400' };
@@ -158,14 +161,14 @@ const JobDetailPage: React.FC = () => {
     <div className="p-6">
       {/* Header */}
       <PageHeader
-        title={decodedJobKey}
+        title={displayJobKey}
         subtitle={`Scheduler: ${decodedSchedulerName}`}
         backPath={`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs`}
         breadcrumbs={[
           { label: 'Schedulers', path: '/schedulers' },
           { label: decodedSchedulerName, path: `/schedulers/${encodeURIComponent(decodedSchedulerName)}` },
           { label: 'Jobs', path: `/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs` },
-          { label: decodedJobKey, active: true }
+          { label: displayJobKey, active: true }
         ]}
       />
       <div className="flex gap-2 mb-6">
@@ -203,7 +206,7 @@ const JobDetailPage: React.FC = () => {
         </div>
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
           <div className="text-xs text-slate-500 mb-1">Group</div>
-          <div className="text-sm text-slate-50">{job.group || 'default'}</div>
+          <div className="text-sm text-slate-50">{job.jobKey.group}</div>
         </div>
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
           <div className="text-xs text-slate-500 mb-1">Status</div>
@@ -249,7 +252,7 @@ const JobDetailPage: React.FC = () => {
         <ConfirmDialog
           isOpen={isDeleteConfirmOpen}
           title="Delete Job"
-          message={`Are you sure you want to delete "${decodedJobKey}"? This action cannot be undone.`}
+          message={`Are you sure you want to delete "${displayJobKey}"? This action cannot be undone.`}
           confirmLabel="Delete"
           onConfirm={handleDelete}
           onClose={() => setIsDeleteConfirmOpen(false)}

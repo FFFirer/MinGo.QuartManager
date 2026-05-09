@@ -38,35 +38,47 @@ public static class AgentApiExtensions
         app.MapGet($"{prefix}/jobs", GetJobsHandler)
            .WithName("GetJobs");
 
-        // GET /api/agent/jobs/{jobKey} - 详情
-        app.MapGet($"{prefix}/jobs/{{jobKey}}", GetJobHandler)
+        // GET /api/agent/jobs/{name}[/{group}] - 详情
+        app.MapGet($"{prefix}/jobs/{{name}}", GetJobHandler)
            .WithName("GetJob");
+        app.MapGet($"{prefix}/jobs/{{name}}/{{group}}", GetJobHandler)
+           .WithName("GetJobByGroup");
 
         // PUT /api/agent/jobs - 创建/替换（幂等）
         app.MapPut($"{prefix}/jobs", CreateJobHandler)
            .WithName("ReplaceJob");
 
-        // PUT /api/agent/jobs/{jobKey} - 更新
-        app.MapPut($"{prefix}/jobs/{{jobKey}}", UpdateJobHandler)
+        // PUT /api/agent/jobs/{name}[/{group}] - 更新
+        app.MapPut($"{prefix}/jobs/{{name}}", UpdateJobHandler)
            .WithName("UpdateJob");
+        app.MapPut($"{prefix}/jobs/{{name}}/{{group}}", UpdateJobHandler)
+           .WithName("UpdateJobByGroup");
 
-        // DELETE /api/agent/jobs/{jobKey} - 删除
-        app.MapDelete($"{prefix}/jobs/{{jobKey}}", DeleteJobHandler)
+        // DELETE /api/agent/jobs/{name}[/{group}] - 删除
+        app.MapDelete($"{prefix}/jobs/{{name}}", DeleteJobHandler)
            .WithName("DeleteJob");
+        app.MapDelete($"{prefix}/jobs/{{name}}/{{group}}", DeleteJobHandler)
+           .WithName("DeleteJobByGroup");
 
         // ========== Job 操作 ==========
 
-        // POST /api/agent/jobs/{jobKey}/trigger
-        app.MapPost($"{prefix}/jobs/{{jobKey}}/trigger", TriggerJobHandler)
+        // POST /api/agent/jobs/{name}[/{group}]/trigger
+        app.MapPost($"{prefix}/jobs/{{name}}/trigger", TriggerJobHandler)
            .WithName("TriggerJob");
+        app.MapPost($"{prefix}/jobs/{{name}}/{{group}}/trigger", TriggerJobHandler)
+           .WithName("TriggerJobByGroup");
 
-        // POST /api/agent/jobs/{jobKey}/pause
-        app.MapPost($"{prefix}/jobs/{{jobKey}}/pause", PauseJobHandler)
+        // POST /api/agent/jobs/{name}[/{group}]/pause
+        app.MapPost($"{prefix}/jobs/{{name}}/pause", PauseJobHandler)
            .WithName("PauseJob");
+        app.MapPost($"{prefix}/jobs/{{name}}/{{group}}/pause", PauseJobHandler)
+           .WithName("PauseJobByGroup");
 
-        // POST /api/agent/jobs/{jobKey}/resume
-        app.MapPost($"{prefix}/jobs/{{jobKey}}/resume", ResumeJobHandler)
+        // POST /api/agent/jobs/{name}[/{group}]/resume
+        app.MapPost($"{prefix}/jobs/{{name}}/resume", ResumeJobHandler)
            .WithName("ResumeJob");
+        app.MapPost($"{prefix}/jobs/{{name}}/{{group}}/resume", ResumeJobHandler)
+           .WithName("ResumeJobByGroup");
 
         // ========== Job Manifest ==========
 
@@ -147,12 +159,14 @@ public static class AgentApiExtensions
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。由 Platform 转发时设置。")]
     private static async Task<IResult> GetJobHandler(
         HttpRequest request,
-        string jobKey,
+        string name,
+        string? group,
         [FromServices] IQuartzService quartz,
         [FromServices] IAgentSchedulerAccessor accessor,
         CancellationToken ct)
     {
         var schedulerName = ParseSchedulerName(request, accessor);
+        var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
         var job = await quartz.GetJobAsync(schedulerName, jobKey);
         return job != null
             ? Results.Ok(ApiResponse<JobDetailDto>.Ok(job))
@@ -182,7 +196,8 @@ public static class AgentApiExtensions
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。由 Platform 转发时设置。")]
     private static async Task<IResult> UpdateJobHandler(
         HttpRequest request,
-        string jobKey,
+        string name,
+        string? group,
         UpdateJobRequest requestBody,
         [FromServices] IQuartzService quartz,
         [FromServices] IAgentSchedulerAccessor accessor,
@@ -191,6 +206,7 @@ public static class AgentApiExtensions
         try
         {
             var schedulerName = ParseSchedulerName(request, accessor);
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await quartz.UpdateJobAsync(schedulerName, jobKey, requestBody);
             return Results.Ok(ApiResponse<object>.Ok(new { }));
         }
@@ -203,7 +219,8 @@ public static class AgentApiExtensions
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。由 Platform 转发时设置。")]
     private static async Task<IResult> DeleteJobHandler(
         HttpRequest request,
-        string jobKey,
+        string name,
+        string? group,
         [FromServices] IQuartzService quartz,
         [FromServices] IAgentSchedulerAccessor accessor,
         CancellationToken ct)
@@ -211,6 +228,7 @@ public static class AgentApiExtensions
         try
         {
             var schedulerName = ParseSchedulerName(request, accessor);
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await quartz.DeleteJobAsync(schedulerName, jobKey);
             return Results.Ok(ApiResponse<object>.Ok(new { }));
         }
@@ -223,7 +241,8 @@ public static class AgentApiExtensions
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。由 Platform 转发时设置。")]
     private static async Task<IResult> TriggerJobHandler(
         HttpRequest request,
-        string jobKey,
+        string name,
+        string? group,
         [FromServices] IQuartzService quartz,
         [FromServices] IAgentSchedulerAccessor accessor,
         CancellationToken ct)
@@ -231,6 +250,7 @@ public static class AgentApiExtensions
         try
         {
             var schedulerName = ParseSchedulerName(request, accessor);
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await quartz.TriggerJobAsync(schedulerName, jobKey);
             return Results.Ok(ApiResponse<object>.Ok(new { }));
         }
@@ -243,7 +263,8 @@ public static class AgentApiExtensions
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。由 Platform 转发时设置。")]
     private static async Task<IResult> PauseJobHandler(
         HttpRequest request,
-        string jobKey,
+        string name,
+        string? group,
         [FromServices] IQuartzService quartz,
         [FromServices] IAgentSchedulerAccessor accessor,
         CancellationToken ct)
@@ -251,6 +272,7 @@ public static class AgentApiExtensions
         try
         {
             var schedulerName = ParseSchedulerName(request, accessor);
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await quartz.PauseJobAsync(schedulerName, jobKey);
             return Results.Ok(ApiResponse<object>.Ok(new { }));
         }
@@ -263,7 +285,8 @@ public static class AgentApiExtensions
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。由 Platform 转发时设置。")]
     private static async Task<IResult> ResumeJobHandler(
         HttpRequest request,
-        string jobKey,
+        string name,
+        string? group,
         [FromServices] IQuartzService quartz,
         [FromServices] IAgentSchedulerAccessor accessor,
         CancellationToken ct)
@@ -271,6 +294,7 @@ public static class AgentApiExtensions
         try
         {
             var schedulerName = ParseSchedulerName(request, accessor);
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await quartz.ResumeJobAsync(schedulerName, jobKey);
             return Results.Ok(ApiResponse<object>.Ok(new { }));
         }

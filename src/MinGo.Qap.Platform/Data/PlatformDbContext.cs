@@ -132,26 +132,28 @@ public class PlatformDbContext : DbContext
             entity.HasIndex(e => e.ReportedAt);
         });
 
-        // JobDefinition 配置
-        modelBuilder.Entity<JobDefinition>(entity =>
-        {
-            entity.ToTable("JobDefinitions");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasMaxLength(64);
-            entity.Property(e => e.SchedulerName).HasMaxLength(64).IsRequired();
-            entity.Property(e => e.JobKey).HasMaxLength(512).IsRequired();
-            entity.Property(e => e.Group).HasMaxLength(256);
-            entity.Property(e => e.JobType).HasMaxLength(256).IsRequired();
-            entity.Property(e => e.Params).HasColumnType("text");
-            entity.Property(e => e.Schedule).HasColumnType("text");
-            entity.Property(e => e.Options).HasColumnType("text");
-            entity.Property(e => e.ResultJson).HasColumnType("text");
-            entity.Property(e => e.ErrorMessage).HasMaxLength(4000);
+            // JobDefinition 配置
+            modelBuilder.Entity<JobDefinition>(entity =>
+            {
+                entity.ToTable("JobDefinitions");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasMaxLength(64);
+                entity.Property(e => e.SchedulerName).HasMaxLength(64).IsRequired();
+                entity.Property(e => e.Name).HasMaxLength(256).IsRequired();
+                entity.Property(e => e.Group).HasMaxLength(256).IsRequired();
+                entity.Property(e => e.JobKey).HasMaxLength(512);
+                entity.Property(e => e.JobType).HasMaxLength(256).IsRequired();
+                entity.Property(e => e.Params).HasColumnType("text");
+                entity.Property(e => e.Schedule).HasColumnType("text");
+                entity.Property(e => e.Options).HasColumnType("text");
+                entity.Property(e => e.ResultJson).HasColumnType("text");
+                entity.Property(e => e.ErrorMessage).HasMaxLength(4000);
 
-            // 索引
-            entity.HasIndex(e => new { e.SchedulerName, e.JobKey }).IsUnique();
-            entity.HasIndex(e => e.Status);
-        });
+                // 索引
+                entity.HasIndex(e => new { e.SchedulerName, e.Group, e.Name }).IsUnique();
+                entity.HasIndex(e => new { e.SchedulerName, e.JobKey }).IsUnique();
+                entity.HasIndex(e => e.Status);
+            });
 
 
     }

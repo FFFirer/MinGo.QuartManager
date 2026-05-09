@@ -23,9 +23,10 @@ public class QapJobListener : IJobListener
     {
         try
         {
-            var jobKey = context.JobDetail.Key.ToString();
+            var qKey = context.JobDetail.Key;
+            var jobKey = new JobKeyDto(qKey.Name, qKey.Group);
             _logService.RecordJobStarted(jobKey);
-            _logger.LogDebug("Job started: {JobKey}", jobKey);
+            _logger.LogDebug("Job started: {JobKey}", jobKey.ToString());
         }
         catch (Exception ex)
         {
@@ -39,7 +40,7 @@ public class QapJobListener : IJobListener
     {
         try
         {
-            _logger.LogWarning("Job vetoed: {JobKey}", context.JobDetail.Key);
+            _logger.LogWarning("Job vetoed: {JobKey}", context.JobDetail.Key.ToString());
         }
         catch (Exception ex)
         {
@@ -56,7 +57,8 @@ public class QapJobListener : IJobListener
     {
         try
         {
-            var jobKey = context.JobDetail.Key.ToString();
+            var qKey = context.JobDetail.Key;
+            var jobKey = new JobKeyDto(qKey.Name, qKey.Group);
             var success = jobException == null;
 
             _logService.RecordJobCompleted(

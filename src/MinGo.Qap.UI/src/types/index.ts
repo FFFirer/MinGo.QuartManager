@@ -173,6 +173,12 @@ export interface JobTypeQualifiedName {
   publicKeyToken?: string;
 }
 
+// JobKeyDto — 强类型 Job 标识符
+export interface JobKeyDto {
+  name: string;
+  group: string;
+}
+
 // Job types
 export interface ScheduleDto {
   type: ScheduleType;
@@ -188,7 +194,7 @@ export interface QuartzOptionsDto {
 }
 
 export interface CreateJobRequest {
-  jobKey: string;
+  jobKey: JobKeyDto;
   jobType: JobTypeQualifiedName;
   params: Record<string, any>;
   schedule: ScheduleDto;
@@ -204,7 +210,7 @@ export interface UpdateJobRequest {
 export interface JobDefinitionDto {
   id: string;
   schedulerName: string;
-  jobKey: string;
+  jobKey: JobKeyDto;
   jobType: JobTypeQualifiedName;
   params: string;
   schedule: string;
@@ -216,9 +222,8 @@ export interface JobDefinitionDto {
 }
 
 export interface JobSummaryDto {
-  jobKey: string;
+  jobKey: JobKeyDto;
   jobType: JobTypeQualifiedName;
-  group: string;
   status: string;
   scheduleType: string;
   cronExpression?: string;
@@ -227,9 +232,8 @@ export interface JobSummaryDto {
 }
 
 export interface JobDetailDto {
-  jobKey: string;
+  jobKey: JobKeyDto;
   jobType: JobTypeQualifiedName;
-  group: string;
   status: string;
   description: string;
   schedule: ScheduleDto;
@@ -294,13 +298,9 @@ export interface SystemMetricsDto {
   cpuPercent: number;
 }
 
-// Utility: parse a "GROUP.name" job key into parts
-export function parseJobKey(jobKey: string): { group: string; name: string } {
-  const idx = jobKey.indexOf('.');
-  if (idx > 0) {
-    return { group: jobKey.substring(0, idx), name: jobKey.substring(idx + 1) };
-  }
-  return { group: 'DEFAULT', name: jobKey };
+// Utility: format a JobKeyDto for display
+export function formatJobKey(jobKey: JobKeyDto): string {
+  return `${jobKey.group}.${jobKey.name}`;
 }
 
 // Utility: safely parse a JSON string or return fallback

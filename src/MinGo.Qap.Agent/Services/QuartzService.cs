@@ -11,12 +11,12 @@ namespace MinGo.Qap.Agent.Services;
 public interface IQuartzService
 {
     Task<JobDetailDto> CreateJobAsync(string schedulerName, CreateJobRequest request);
-    Task UpdateJobAsync(string schedulerName, string jobKey, UpdateJobRequest request);
-    Task DeleteJobAsync(string schedulerName, string jobKey);
-    Task TriggerJobAsync(string schedulerName, string jobKey);
-    Task PauseJobAsync(string schedulerName, string jobKey);
-    Task ResumeJobAsync(string schedulerName, string jobKey);
-    Task<JobDetailDto?> GetJobAsync(string schedulerName, string jobKey);
+    Task UpdateJobAsync(string schedulerName, JobKeyDto jobKey, UpdateJobRequest request);
+    Task DeleteJobAsync(string schedulerName, JobKeyDto jobKey);
+    Task TriggerJobAsync(string schedulerName, JobKeyDto jobKey);
+    Task PauseJobAsync(string schedulerName, JobKeyDto jobKey);
+    Task ResumeJobAsync(string schedulerName, JobKeyDto jobKey);
+    Task<JobDetailDto?> GetJobAsync(string schedulerName, JobKeyDto jobKey);
     Task<PagedResponse<JobSummaryDto>> GetJobsAsync(string schedulerName, JobQuery query);
     Task<SchedulerStateDto> GetSchedulerStateAsync(string schedulerName);
     Task<List<string>> GetSchedulerNamesAsync();
@@ -93,7 +93,8 @@ public class QuartzService : IQuartzService
 
         // 转换参数
         var jobDetail = _converter.ConvertToDetail(request, jobType);
-        var trigger = _converter.ConvertToTrigger(request.JobKey, request.Schedule);
+        var triggerKey = new TriggerKey(jobDetail.Key.Name + "_trigger", jobDetail.Key.Group);
+        var trigger = _converter.ConvertToTrigger(triggerKey, jobDetail.Key, request.Schedule);
 
         if (trigger == null)
         {
@@ -114,12 +115,13 @@ public class QuartzService : IQuartzService
         else
         {
             // 1. 替换/创建 JobDetail（幂等，replace: true）
-            await scheduler.AddJob(jobDetail, replace: true, cancellationToken: default);
+            // 使用 storeNonDurableWhileAwaitingScheduling 允许非持久化 Job
+            // 在后续添加 Trigger 前暂时存在
+            await scheduler.AddJob(jobDetail, replace: true, storeNonDurableWhileAwaitingScheduling: true, cancellationToken: default);
 
             // 2. 替换 Trigger
-            var (_, group) = ParseJobKey(request.JobKey);
-            var triggerName = $"{request.JobKey.Split('.').Last()}_trigger";
-            var triggerKey = new TriggerKey(triggerName, group);
+            var triggerName = $"{request.JobKey.Name}_trigger";
+            // var triggerKey = new TriggerKey(triggerName, group);
             var replaced = await scheduler.RescheduleJob(triggerKey, trigger, cancellationToken: default);
             if (replaced == null)
             {
@@ -134,13 +136,12 @@ public class QuartzService : IQuartzService
             ?? throw new InvalidOperationException("Failed to retrieve replaced job");
     }
 
-    public async Task UpdateJobAsync(string schedulerName, string jobKey, UpdateJobRequest request)
+    public async Task UpdateJobAsync(string schedulerName, JobKeyDto jobKey, UpdateJobRequest request)
     {
         var scheduler = GetScheduler(schedulerName);
-        _logger.LogInformation("Updating job: {JobKey}", jobKey);
+        _logger.LogInformation("Updating job: {JobKey}", jobKey.ToString());
 
-        var (name, group) = ParseJobKey(jobKey);
-        var jobKeyObj = new JobKey(name, group);
+        var jobKeyObj = new JobKey(jobKey.Name, jobKey.Group);
 
         // 获取现有 Job
         var existingJob = await scheduler.GetJobDetail(jobKeyObj);
@@ -152,15 +153,18 @@ public class QuartzService : IQuartzService
         // 更新 Trigger（如果提供了 Schedule）
         if (request.Schedule != null)
         {
-            var triggerName = $"{name}_trigger";
-            var triggerKey = new TriggerKey(triggerName, group);
+            var triggerName = $"{jobKey.Name}_trigger";
+            var triggerKey = new TriggerKey(triggerName, jobKey.Group);
 
             // 删除旧 Trigger
             await scheduler.UnscheduleJob(triggerKey);
 
             // 创建新 Trigger
-            var newTrigger = _converter.ConvertToTrigger(jobKey, request.Schedule);
-            await scheduler.ScheduleJob(newTrigger);
+            var newTrigger = _converter.ConvertToTrigger(triggerKey, jobKeyObj, request.Schedule);
+            if (newTrigger is not null)
+            {
+                await scheduler.ScheduleJob(newTrigger);
+            }
         }
 
         // 更新 JobData（如果提供了 Params）
@@ -190,13 +194,12 @@ public class QuartzService : IQuartzService
         _logger.LogInformation("Job updated successfully: {JobKey}", jobKey);
     }
 
-    public async Task DeleteJobAsync(string schedulerName, string jobKey)
+    public async Task DeleteJobAsync(string schedulerName, JobKeyDto jobKey)
     {
         var scheduler = GetScheduler(schedulerName);
-        _logger.LogInformation("Deleting job: {JobKey}", jobKey);
+        _logger.LogInformation("Deleting job: {JobKey}", jobKey.ToString());
 
-        var (name, group) = ParseJobKey(jobKey);
-        var jobKeyObj = new JobKey(name, group);
+        var jobKeyObj = new JobKey(jobKey.Name, jobKey.Group);
 
         var deleted = await scheduler.DeleteJob(jobKeyObj);
         if (!deleted)
@@ -204,53 +207,49 @@ public class QuartzService : IQuartzService
             throw new ArgumentException($"Job not found or could not be deleted: {jobKey}");
         }
 
-        _logger.LogInformation("Job deleted successfully: {JobKey}", jobKey);
+        _logger.LogInformation("Job deleted successfully: {JobKey}", jobKey.ToString());
     }
 
-    public async Task TriggerJobAsync(string schedulerName, string jobKey)
+    public async Task TriggerJobAsync(string schedulerName, JobKeyDto jobKey)
     {
         var scheduler = GetScheduler(schedulerName);
-        _logger.LogInformation("Triggering job: {JobKey}", jobKey);
+        _logger.LogInformation("Triggering job: {JobKey}", jobKey.ToString());
 
-        var (name, group) = ParseJobKey(jobKey);
-        var jobKeyObj = new JobKey(name, group);
+        var jobKeyObj = new JobKey(jobKey.Name, jobKey.Group);
 
         await scheduler.TriggerJob(jobKeyObj);
 
-        _logger.LogInformation("Job triggered successfully: {JobKey}", jobKey);
+        _logger.LogInformation("Job triggered successfully: {JobKey}", jobKey.ToString());
     }
 
-    public async Task PauseJobAsync(string schedulerName, string jobKey)
+    public async Task PauseJobAsync(string schedulerName, JobKeyDto jobKey)
     {
         var scheduler = GetScheduler(schedulerName);
-        _logger.LogInformation("Pausing job: {JobKey}", jobKey);
+        _logger.LogInformation("Pausing job: {JobKey}", jobKey.ToString());
 
-        var (name, group) = ParseJobKey(jobKey);
-        var jobKeyObj = new JobKey(name, group);
+        var jobKeyObj = new JobKey(jobKey.Name, jobKey.Group);
 
         await scheduler.PauseJob(jobKeyObj);
 
-        _logger.LogInformation("Job paused successfully: {JobKey}", jobKey);
+        _logger.LogInformation("Job paused successfully: {JobKey}", jobKey.ToString());
     }
 
-    public async Task ResumeJobAsync(string schedulerName, string jobKey)
+    public async Task ResumeJobAsync(string schedulerName, JobKeyDto jobKey)
     {
         var scheduler = GetScheduler(schedulerName);
-        _logger.LogInformation("Resuming job: {JobKey}", jobKey);
+        _logger.LogInformation("Resuming job: {JobKey}", jobKey.ToString());
 
-        var (name, group) = ParseJobKey(jobKey);
-        var jobKeyObj = new JobKey(name, group);
+        var jobKeyObj = new JobKey(jobKey.Name, jobKey.Group);
 
         await scheduler.ResumeJob(jobKeyObj);
 
-        _logger.LogInformation("Job resumed successfully: {JobKey}", jobKey);
+        _logger.LogInformation("Job resumed successfully: {JobKey}", jobKey.ToString());
     }
 
-    public async Task<JobDetailDto?> GetJobAsync(string schedulerName, string jobKey)
+    public async Task<JobDetailDto?> GetJobAsync(string schedulerName, JobKeyDto jobKey)
     {
         var scheduler = GetScheduler(schedulerName);
-        var (name, group) = ParseJobKey(jobKey);
-        var jobKeyObj = new JobKey(name, group);
+        var jobKeyObj = new JobKey(jobKey.Name, jobKey.Group);
 
         var jobDetail = await scheduler.GetJobDetail(jobKeyObj);
         if (jobDetail == null)
@@ -272,7 +271,6 @@ public class QuartzService : IQuartzService
         {
             JobKey = jobKey,
             JobType = ResolveJobType(jobDetail),
-            Group = jobDetail.Key.Group,
             Status = MapTriggerState(triggerState),
             Description = jobDetail.Description ?? string.Empty,
             NextFireTime = trigger?.GetNextFireTimeUtc()?.DateTime,
@@ -337,9 +335,8 @@ public class QuartzService : IQuartzService
 
                 result.Add(new JobSummaryDto
                 {
-                    JobKey = fullKey,
+                    JobKey = new JobKeyDto(jobKey.Name, jobKey.Group),
                     JobType = ResolveJobType(jobDetail),
-                    Group = jobKey.Group,
                     Status = status,
                     ScheduleType = scheduleType,
                     CronExpression = cronExpression,
@@ -445,22 +442,6 @@ public class QuartzService : IQuartzService
         return jobDetail.JobType != null
             ? JobTypeQualifiedName.ParseFrom(jobDetail.JobType)
             : new JobTypeQualifiedName { FullName = "unknown" };
-    }
-
-    private (string name, string group) ParseJobKey(string jobKey)
-    {
-        if (string.IsNullOrWhiteSpace(jobKey))
-        {
-            throw new ArgumentException("JobKey is required");
-        }
-
-        var parts = jobKey.Split('.', 2);
-        if (parts.Length == 2)
-        {
-            return (parts[1], parts[0]);
-        }
-
-        return (jobKey, "default");
     }
 
     private string MapTriggerState(TriggerState state)

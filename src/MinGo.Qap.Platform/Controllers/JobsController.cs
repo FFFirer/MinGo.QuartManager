@@ -50,10 +50,12 @@ public class JobsController : ControllerBase
     /// <summary>
     /// 获取 Job 详情
     /// </summary>
-    [HttpGet("{jobKey}")]
+    [HttpGet("{name}")]
+    [HttpGet("{name}/{group}")]
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
-    public async Task<ActionResult<ApiResponse<JobDefinitionDto>>> Get(string schedulerName, string jobKey)
+    public async Task<ActionResult<ApiResponse<JobDefinitionDto>>> Get(string schedulerName, string name, string? group)
     {
+        var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
         var job = await _jobService.GetAsync(schedulerName, jobKey);
         if (job == null)
         {
@@ -94,15 +96,18 @@ public class JobsController : ControllerBase
     /// <summary>
     /// 更新 Job
     /// </summary>
-    [HttpPut("{jobKey}")]
+    [HttpPut("{name}")]
+    [HttpPut("{name}/{group}")]
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         string schedulerName,
-        string jobKey,
+        string name,
+        string? group,
         [FromBody] UpdateJobRequest request)
     {
         try
         {
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await _jobService.UpdateAsync(schedulerName, jobKey, request);
             return Ok(ApiResponse<object>.Ok(new { }));
         }
@@ -119,12 +124,14 @@ public class JobsController : ControllerBase
     /// <summary>
     /// 删除 Job
     /// </summary>
-    [HttpDelete("{jobKey}")]
+    [HttpDelete("{name}")]
+    [HttpDelete("{name}/{group}")]
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
-    public async Task<ActionResult<ApiResponse<object>>> Delete(string schedulerName, string jobKey)
+    public async Task<ActionResult<ApiResponse<object>>> Delete(string schedulerName, string name, string? group)
     {
         try
         {
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await _jobService.DeleteAsync(schedulerName, jobKey);
             return Ok(ApiResponse<object>.Ok(new { }));
         }
@@ -141,12 +148,14 @@ public class JobsController : ControllerBase
     /// <summary>
     /// 手动触发 Job
     /// </summary>
-    [HttpPost("{jobKey}/trigger")]
+    [HttpPost("{name}/trigger")]
+    [HttpPost("{name}/{group}/trigger")]
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
-    public async Task<ActionResult<ApiResponse<object>>> Trigger(string schedulerName, string jobKey)
+    public async Task<ActionResult<ApiResponse<object>>> Trigger(string schedulerName, string name, string? group)
     {
         try
         {
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await _jobService.TriggerAsync(schedulerName, jobKey);
             return Ok(ApiResponse<object>.Ok(new { }));
         }
@@ -163,12 +172,14 @@ public class JobsController : ControllerBase
     /// <summary>
     /// 暂停 Job
     /// </summary>
-    [HttpPost("{jobKey}/pause")]
+    [HttpPost("{name}/pause")]
+    [HttpPost("{name}/{group}/pause")]
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
-    public async Task<ActionResult<ApiResponse<object>>> Pause(string schedulerName, string jobKey)
+    public async Task<ActionResult<ApiResponse<object>>> Pause(string schedulerName, string name, string? group)
     {
         try
         {
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await _jobService.PauseAsync(schedulerName, jobKey);
             return Ok(ApiResponse<object>.Ok(new { }));
         }
@@ -185,12 +196,14 @@ public class JobsController : ControllerBase
     /// <summary>
     /// 恢复 Job
     /// </summary>
-    [HttpPost("{jobKey}/resume")]
+    [HttpPost("{name}/resume")]
+    [HttpPost("{name}/{group}/resume")]
     [SwaggerHeader("X-Scheduler-Name", "Scheduler 名称。Platform 转发请求到 Agent 时指定目标 Scheduler。")]
-    public async Task<ActionResult<ApiResponse<object>>> Resume(string schedulerName, string jobKey)
+    public async Task<ActionResult<ApiResponse<object>>> Resume(string schedulerName, string name, string? group)
     {
         try
         {
+            var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
             await _jobService.ResumeAsync(schedulerName, jobKey);
             return Ok(ApiResponse<object>.Ok(new { }));
         }

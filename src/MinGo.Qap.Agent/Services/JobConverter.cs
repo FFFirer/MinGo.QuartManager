@@ -18,7 +18,7 @@ public interface IJobConverter
     /// <summary>
     /// 将调度配置转换为 Trigger。当 Schedule 类型为 "none" 时返回 null。
     /// </summary>
-    ITrigger? ConvertToTrigger(string jobKey, ScheduleDto schedule);
+    ITrigger? ConvertToTrigger(TriggerKey triggerKey, JobKey jobKey, ScheduleDto schedule);
 
     /// <summary>
     /// 转换 Misfire 策略
@@ -33,8 +33,7 @@ public class JobConverter : IJobConverter
 {
     public IJobDetail ConvertToDetail(CreateJobRequest request, JobTypeInfoDto jobType)
     {
-        // 解析 JobKey
-        var (name, group) = ParseJobKey(request.JobKey);
+        var jobKey = request.JobKey;
         
         // 构建 JobDataMap
         var jobDataMap = new JobDataMap();
@@ -69,7 +68,7 @@ public class JobConverter : IJobConverter
             ? JobBuilder.Create(actualType)
             : JobBuilder.Create();
 
-        jobBuilder.WithIdentity(name, group)
+        jobBuilder.WithIdentity(jobKey.Name, jobKey.Group)
             .UsingJobData(jobDataMap);
 
         // 持久化 Job
@@ -89,32 +88,27 @@ public class JobConverter : IJobConverter
         return jobBuilder.Build();
     }
 
-    public ITrigger? ConvertToTrigger(string jobKey, ScheduleDto schedule)
+    public ITrigger? ConvertToTrigger(TriggerKey triggerKey, JobKey jobKey, ScheduleDto schedule)
     {
-        var (name, group) = ParseJobKey(jobKey);
-        
         // Schedule=None：不创建 Trigger
         if (string.Equals(schedule.Type, "none", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        // Trigger Key: 与 Job 相同 group，名称加后缀
-        var triggerName = $"{name}_trigger";
-
         return schedule.Type?.ToLower() switch
         {
-            "once" => BuildOnceTrigger(triggerName, group, schedule),
-            "cron" => BuildCronTrigger(triggerName, group, schedule),
-            "interval" => BuildIntervalTrigger(triggerName, group, schedule),
+            "once" => BuildOnceTrigger(triggerKey, jobKey, schedule),
+            "cron" => BuildCronTrigger(triggerKey, jobKey, schedule),
+            "interval" => BuildIntervalTrigger(triggerKey, jobKey, schedule),
             _ => throw new ArgumentException($"Unknown schedule type: {schedule.Type}")
         } ?? throw new ArgumentException("Schedule type is required");
     }
 
-    private ITrigger BuildOnceTrigger(string name, string group, ScheduleDto schedule)
+    private ITrigger BuildOnceTrigger(TriggerKey triggerKey, JobKey jobKey, ScheduleDto schedule)
     {
         var triggerBuilder = TriggerBuilder.Create()
-            .WithIdentity(name, group);
+            .WithIdentity(triggerKey);
 
         if (schedule.RunAt.HasValue)
         {
@@ -127,11 +121,12 @@ public class JobConverter : IJobConverter
 
         // 只执行一次
         return triggerBuilder
+            .ForJob(jobKey)
             .WithSimpleSchedule(x => x.WithRepeatCount(0))
             .Build();
     }
 
-    private ITrigger BuildCronTrigger(string name, string group, ScheduleDto schedule)
+    private ITrigger BuildCronTrigger(TriggerKey triggerKey, JobKey jobKey, ScheduleDto schedule)
     {
         if (string.IsNullOrWhiteSpace(schedule.CronExpression))
         {
@@ -139,7 +134,8 @@ public class JobConverter : IJobConverter
         }
 
         return TriggerBuilder.Create()
-            .WithIdentity(name, group)
+            .WithIdentity(triggerKey)
+            .ForJob(jobKey)
             .WithCronSchedule(schedule.CronExpression, x =>
             {
                 // 可以根据 Misfire 策略配置
@@ -148,7 +144,7 @@ public class JobConverter : IJobConverter
             .Build();
     }
 
-    private ITrigger BuildIntervalTrigger(string name, string group, ScheduleDto schedule)
+    private ITrigger BuildIntervalTrigger(TriggerKey triggerKey, JobKey jobKey, ScheduleDto schedule)
     {
         if (!schedule.IntervalSeconds.HasValue || schedule.IntervalSeconds.Value <= 0)
         {
@@ -156,7 +152,8 @@ public class JobConverter : IJobConverter
         }
 
         return TriggerBuilder.Create()
-            .WithIdentity(name, group)
+            .WithIdentity(triggerKey)
+            .ForJob(jobKey)
             .WithSimpleSchedule(x => x
                 .WithIntervalInSeconds(schedule.IntervalSeconds.Value)
                 .RepeatForever()
@@ -175,23 +172,4 @@ public class JobConverter : IJobConverter
         };
     }
 
-    /// <summary>
-    /// 解析 JobKey
-    /// </summary>
-    private (string name, string group) ParseJobKey(string jobKey)
-    {
-        if (string.IsNullOrWhiteSpace(jobKey))
-        {
-            throw new ArgumentException("JobKey is required");
-        }
-
-        var parts = jobKey.Split('.', 2);
-        if (parts.Length == 2)
-        {
-            return (parts[1], parts[0]);
-        }
-
-        // 没有 group 分隔符，使用默认 group
-        return (jobKey, "default");
-    }
 }

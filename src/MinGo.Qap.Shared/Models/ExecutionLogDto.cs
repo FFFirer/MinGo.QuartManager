@@ -8,7 +8,7 @@ public class ExecutionLogDto
     /// <summary>
     /// 作业 Key
     /// </summary>
-    public string JobKey { get; set; } = string.Empty;
+    public JobKeyDto JobKey { get; set; }
     
     /// <summary>
     /// 开始时间

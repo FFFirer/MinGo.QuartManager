@@ -8,13 +8,14 @@ import PageHeader from '../components/PageHeader';
 import JobTypeDisplay from '../components/JobTypeDisplay';
 import type {
   CreateJobRequest,
+  JobKeyDto,
   ScheduleDto,
   QuartzOptionsDto,
   JobTypeInfoDto,
   ParameterInfoDto,
   ScheduleType,
 } from '../types';
-import { parseJobKey, tryParseJson } from '../types';
+import { formatJobKey, tryParseJson } from '../types';
 
 const SCHEDULE_TYPES = [
   { value: 'Once' as ScheduleType, label: 'Once', description: 'Run one time' },
@@ -77,7 +78,12 @@ const CreateJobPage: React.FC = () => {
     queryKey: ['job', decodedSchedulerName, copyFrom],
     queryFn: async () => {
       if (!copyFrom) return null;
-      const resp = await jobApi.get(decodedSchedulerName, copyFrom);
+      const idx = copyFrom.indexOf('.');
+      const copyJobKey: JobKeyDto = {
+        name: idx > 0 ? copyFrom.substring(idx + 1) : copyFrom,
+        group: idx > 0 ? copyFrom.substring(0, idx) : 'DEFAULT',
+      };
+      const resp = await jobApi.get(decodedSchedulerName, copyJobKey);
       if (!resp.success) throw new Error(resp.errorMessage);
       return resp.data;
     },
@@ -120,7 +126,9 @@ const CreateJobPage: React.FC = () => {
   // Prefill from copy source
   useEffect(() => {
     if (copySource && copyFrom) {
-      const { group: g, name: n } = parseJobKey(copyFrom);
+      const idx = copyFrom.indexOf('.');
+      const g = idx > 0 ? copyFrom.substring(0, idx) : 'DEFAULT';
+      const n = idx > 0 ? copyFrom.substring(idx + 1) : copyFrom;
       setGroup(g);
       setJobName(n);
 
@@ -278,7 +286,7 @@ const CreateJobPage: React.FC = () => {
     if (!validate()) return;
 
     const effectiveGroup = isCustomGroup ? customGroup.trim() || group : group;
-    const fullJobKey = `${effectiveGroup}.${jobName.trim()}`;
+    const jobKey: JobKeyDto = { name: jobName.trim(), group: effectiveGroup };
 
     let schedule: ScheduleDto;
     switch (scheduleType) {
@@ -310,7 +318,7 @@ const CreateJobPage: React.FC = () => {
     };
 
     const request: CreateJobRequest = {
-      jobKey: fullJobKey,
+      jobKey: jobKey,
       jobType: selectedJob?.jobTypeQualifiedName ?? { fullName: selectedJobType, assembly: '' },
       params,
       schedule,
@@ -422,7 +430,7 @@ const CreateJobPage: React.FC = () => {
           </div>
           {effectiveGroup && jobName.trim() && (
             <div className="mt-3 p-2 bg-slate-700/40 rounded text-sm text-slate-400">
-              Full Job Key: <span className="font-mono text-slate-50">{effectiveGroup}.{jobName.trim() || '…'}</span>
+              Full Job Key: <span className="font-mono text-slate-50">{formatJobKey({ name: jobName.trim(), group: effectiveGroup })}</span>
             </div>
           )}
         </section>
@@ -838,7 +846,7 @@ const CreateJobPage: React.FC = () => {
               <p>
                 Job Key:{' '}
                 <span className="text-slate-50 font-mono">
-                  {effectiveGroup}.{jobName.trim() || '…'}
+                  {formatJobKey({ name: jobName.trim() || '…', group: effectiveGroup })}
                 </span>
               </p>
               <p>Type: <span className="text-slate-50">{selectedJobType}</span></p>

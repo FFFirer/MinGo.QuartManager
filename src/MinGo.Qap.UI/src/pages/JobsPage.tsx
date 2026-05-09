@@ -10,7 +10,12 @@ import DataTable from '../components/DataTable';
 import PaginationBar from '../components/PaginationBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import PageHeader from '../components/PageHeader';
-import type { JobSummaryDto } from '../types';
+import type { JobSummaryDto, JobKeyDto } from '../types';
+
+// Helper: composite key for batch selection
+function compositeKey(name: string, group: string): string {
+  return `${name}\x1F${group}`;
+}
 
 const JobsPage: React.FC = () => {
   const { schedulerName } = useParams<{ schedulerName: string }>();
@@ -39,8 +44,14 @@ const JobsPage: React.FC = () => {
   const totalItems = jobsResponse?.total ?? 0;
   const totalPages = jobsResponse?.totalPages ?? 1;
 
+  // Helper: convert a composite key string back to JobKeyDto
+  const parseCompositeKey = (key: string): JobKeyDto => {
+    const parts = key.split('\x1F');
+    return { name: parts[0], group: parts[1] || 'DEFAULT' };
+  };
+
   const triggerJob = useMutation({
-    mutationFn: (jobKey: string) => jobApi.trigger(decodedSchedulerName, jobKey),
+    mutationFn: (jobKey: JobKeyDto) => jobApi.trigger(decodedSchedulerName, jobKey),
     onSuccess: () => {
       toast.success('Job triggered successfully');
       queryClient.invalidateQueries({ queryKey: ['jobs', decodedSchedulerName] });
@@ -49,7 +60,7 @@ const JobsPage: React.FC = () => {
   });
 
   const pauseJob = useMutation({
-    mutationFn: (jobKey: string) => jobApi.pause(decodedSchedulerName, jobKey),
+    mutationFn: (jobKey: JobKeyDto) => jobApi.pause(decodedSchedulerName, jobKey),
     onSuccess: () => {
       toast.success('Job paused successfully');
       queryClient.invalidateQueries({ queryKey: ['jobs', decodedSchedulerName] });
@@ -58,7 +69,7 @@ const JobsPage: React.FC = () => {
   });
 
   const resumeJob = useMutation({
-    mutationFn: (jobKey: string) => jobApi.resume(decodedSchedulerName, jobKey),
+    mutationFn: (jobKey: JobKeyDto) => jobApi.resume(decodedSchedulerName, jobKey),
     onSuccess: () => {
       toast.success('Job resumed successfully');
       queryClient.invalidateQueries({ queryKey: ['jobs', decodedSchedulerName] });
@@ -67,7 +78,7 @@ const JobsPage: React.FC = () => {
   });
 
   const deleteJob = useMutation({
-    mutationFn: (jobKey: string) => jobApi.delete(decodedSchedulerName, jobKey),
+    mutationFn: (jobKey: JobKeyDto) => jobApi.delete(decodedSchedulerName, jobKey),
     onSuccess: () => {
       toast.success('Job deleted successfully');
       queryClient.invalidateQueries({ queryKey: ['jobs', decodedSchedulerName] });
@@ -81,11 +92,12 @@ const JobsPage: React.FC = () => {
       const keys = Array.from(selectedKeys);
       if (keys.length === 0) return { total: 0, successes: 0, failures: 0 };
       const promises = keys.map((key) => {
+        const jobKey = parseCompositeKey(key);
         switch (action) {
-          case 'trigger': return jobApi.trigger(decodedSchedulerName, key);
-          case 'pause': return jobApi.pause(decodedSchedulerName, key);
-          case 'resume': return jobApi.resume(decodedSchedulerName, key);
-          case 'delete': return jobApi.delete(decodedSchedulerName, key);
+          case 'trigger': return jobApi.trigger(decodedSchedulerName, jobKey);
+          case 'pause': return jobApi.pause(decodedSchedulerName, jobKey);
+          case 'resume': return jobApi.resume(decodedSchedulerName, jobKey);
+          case 'delete': return jobApi.delete(decodedSchedulerName, jobKey);
         }
       });
       const results = await Promise.allSettled(promises);
@@ -128,8 +140,11 @@ const JobsPage: React.FC = () => {
     return <div className="p-8 text-red-400">Error: {error.message}</div>;
   }
 
-  const handleJobClick = (jobKey: string) => {
-    navigate(`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs/${encodeURIComponent(jobKey)}`);
+  const handleJobClick = (jobKey: JobKeyDto) => {
+    const url = jobKey.group === 'DEFAULT'
+      ? `/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs/${encodeURIComponent(jobKey.name)}`
+      : `/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs/${encodeURIComponent(jobKey.name)}/${encodeURIComponent(jobKey.group)}`;
+    navigate(url);
   };
 
   // Columns definition. Insert a checkbox column as the FIRST column for batch selection.
@@ -143,7 +158,7 @@ const JobsPage: React.FC = () => {
             onChange={(e) => {
               e.stopPropagation();
               if (e.target.checked) {
-                const keys = (jobs || []).map((j) => j.jobKey);
+                const keys = (jobs || []).map((j) => compositeKey(j.jobKey.name, j.jobKey.group));
                 setSelectedKeys(new Set<string>(keys));
               } else {
                 setSelectedKeys(new Set<string>());
@@ -156,13 +171,14 @@ const JobsPage: React.FC = () => {
         <input
           type="checkbox"
           className="h-4 w-4"
-          checked={selectedKeys.has(row.jobKey)}
+          checked={selectedKeys.has(compositeKey(row.jobKey.name, row.jobKey.group))}
           onChange={(e) => {
             e.stopPropagation();
+            const key = compositeKey(row.jobKey.name, row.jobKey.group);
             setSelectedKeys((prev) => {
               const next = new Set<string>(prev);
-              if (next.has(row.jobKey)) next.delete(row.jobKey);
-              else next.add(row.jobKey);
+              if (next.has(key)) next.delete(key);
+              else next.add(key);
               return next;
             });
           }}
@@ -173,7 +189,7 @@ const JobsPage: React.FC = () => {
     },
     {
       header: 'Job Key',
-      accessor: (row: JobSummaryDto) => row.jobKey,
+      accessor: (row: JobSummaryDto) => `${row.jobKey.group}.${row.jobKey.name}`,
       sortable: true,
     },
     {
@@ -182,7 +198,7 @@ const JobsPage: React.FC = () => {
     },
     {
       header: 'Group',
-      accessor: (row: JobSummaryDto) => row.group,
+      accessor: (row: JobSummaryDto) => row.jobKey.group,
     },
     {
       header: 'Status',
@@ -230,14 +246,18 @@ const JobsPage: React.FC = () => {
             <Play size={14} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); navigate(`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs/create?copyFrom=${encodeURIComponent(row.jobKey)}`); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const copyFrom = `${row.jobKey.group}.${row.jobKey.name}`;
+              navigate(`/schedulers/${encodeURIComponent(decodedSchedulerName)}/jobs/create?copyFrom=${encodeURIComponent(copyFrom)}`);
+            }}
             className="p-1.5 text-purple-400 hover:text-purple-300 hover:bg-slate-700 rounded"
             title="Copy"
           >
             <Copy size={14} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); setDeleteConfirmJobId(row.jobKey); }}
+            onClick={(e) => { e.stopPropagation(); setDeleteConfirmJobId(compositeKey(row.jobKey.name, row.jobKey.group)); }}
             className="p-1.5 text-red-400 hover:text-red-300 hover:bg-slate-700 rounded"
             title="Delete"
           >
@@ -313,7 +333,7 @@ const JobsPage: React.FC = () => {
         <DataTable
           columns={columns}
           data={jobs || []}
-          onRowClick={(row) => handleJobClick(row.jobKey)}
+          onRowClick={(row: JobSummaryDto) => handleJobClick(row.jobKey)}
           emptyMessage="No jobs found for this scheduler"
         />
       </div>
@@ -333,10 +353,10 @@ const JobsPage: React.FC = () => {
         <ConfirmDialog
           isOpen={true}
           title="Delete Job"
-          message={`Are you sure you want to delete job "${deleteConfirmJobId}"?`}
+          message={`Are you sure you want to delete job "${deleteConfirmJobId.replace('\x1F', '.')}"?`}
           confirmLabel="Delete"
           onConfirm={() => {
-            deleteJob.mutate(deleteConfirmJobId);
+            deleteJob.mutate(parseCompositeKey(deleteConfirmJobId));
             setDeleteConfirmJobId(null);
           }}
           onClose={() => setDeleteConfirmJobId(null)}

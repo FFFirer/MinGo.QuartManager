@@ -14,7 +14,7 @@ public class DashboardDto
 
 public class UpcomingJobDto
 {
-    public string JobKey { get; set; } = string.Empty;
+    public JobKeyDto JobKey { get; set; }
     public string JobType { get; set; } = string.Empty;
     public string ScheduleDescription { get; set; } = string.Empty;
     public DateTimeOffset NextFireTime { get; set; }

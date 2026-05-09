@@ -18,14 +18,19 @@ public class JobDefinition
     public string SchedulerName { get; set; } = string.Empty;
     
     /// <summary>
-    /// JobKey（GroupName.JobName）
+    /// Job Name
     /// </summary>
-    public string JobKey { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
     
     /// <summary>
-    /// Group（从 JobKey 提取）
+    /// Job Group
     /// </summary>
-    public string? Group { get; set; }
+    public string Group { get; set; } = "DEFAULT";
+
+    /// <summary>
+    /// JobKey（兼容旧数据，新代码不写入）
+    /// </summary>
+    public string JobKey { get; set; } = string.Empty;
     
     /// <summary>
     /// Job 类型

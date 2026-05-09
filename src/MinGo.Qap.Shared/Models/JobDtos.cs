@@ -60,8 +60,7 @@ public class CreateJobRequest
     /// Job 唯一标识（Name + Group）
     /// </summary>
     [Required(ErrorMessage = "Job Key 不能为空")]
-    [StringLength(100, ErrorMessage = "Job Key 长度不能超过 100 个字符")]
-    public string JobKey { get; set; } = string.Empty;
+    public JobKeyDto JobKey { get; set; }
     
     /// <summary>
     /// Job 类型的结构化限定名
@@ -103,7 +102,7 @@ public class JobDefinitionDto
 {
     public string Id { get; set; } = string.Empty;
     public string SchedulerName { get; set; } = string.Empty;
-    public string JobKey { get; set; } = string.Empty;
+    public JobKeyDto JobKey { get; set; }
     public JobTypeQualifiedName JobType { get; set; } = new();
     public string Params { get; set; } = "{}";
     public string Schedule { get; set; } = "{}";
@@ -119,9 +118,8 @@ public class JobDefinitionDto
 /// </summary>
 public class JobSummaryDto
 {
-    public string JobKey { get; set; } = string.Empty;
+    public JobKeyDto JobKey { get; set; }
     public JobTypeQualifiedName JobType { get; set; } = new();
-    public string Group { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string ScheduleType { get; set; } = string.Empty;
     public string? CronExpression { get; set; }
@@ -134,9 +132,8 @@ public class JobSummaryDto
 /// </summary>
 public class JobDetailDto
 {
-    public string JobKey { get; set; } = string.Empty;
+    public JobKeyDto JobKey { get; set; }
     public JobTypeQualifiedName JobType { get; set; } = new();
-    public string Group { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public ScheduleDto Schedule { get; set; } = new();

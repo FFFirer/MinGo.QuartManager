@@ -60,7 +60,8 @@ function AppLayout() {
             <Route path="/schedulers/:schedulerName" element={<SchedulerDetailPage />} />
             <Route path="/schedulers/:schedulerName/jobs" element={<JobsPage />} />
             <Route path="/schedulers/:schedulerName/jobs/create" element={<CreateJobPage />} />
-            <Route path="/schedulers/:schedulerName/jobs/:jobKey" element={<JobDetailPage />} />
+            <Route path="/schedulers/:schedulerName/jobs/:name" element={<JobDetailPage />} />
+            <Route path="/schedulers/:schedulerName/jobs/:name/:group" element={<JobDetailPage />} />
           </Routes>
         </main>
         <FloatingActionPalette />
