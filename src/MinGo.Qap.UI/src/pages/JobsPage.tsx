@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Play, Pause, Trash2, Plus, RefreshCw, Copy } from 'lucide-react';
+import { Play, Pause, Trash2, Plus, RefreshCw, Copy, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { jobApi } from '../api';
 import StatusBadge from '../components/StatusBadge';
@@ -17,6 +17,16 @@ function compositeKey(name: string, group: string): string {
   return `${name}\x1F${group}`;
 }
 
+// Custom hook: debounce a value with specified delay
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 const JobsPage: React.FC = () => {
   const { schedulerName } = useParams<{ schedulerName: string }>();
   const navigate = useNavigate();
@@ -30,10 +40,21 @@ const JobsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState<number>(20);
   const decodedSchedulerName = schedulerName ? decodeURIComponent(schedulerName) : '';
 
+  // Filter state
+  const [groupFilter, setGroupFilter] = useState('');
+  const [nameFilter, setNameFilter] = useState('');
+  const debouncedGroup = useDebounce(groupFilter, 500);
+  const debouncedName = useDebounce(nameFilter, 500);
+
+  // Reset to page 1 when debounced filters change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedGroup, debouncedName]);
+
   const { data: jobsResponse, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ['jobs', decodedSchedulerName, page, pageSize],
+    queryKey: ['jobs', decodedSchedulerName, page, pageSize, debouncedGroup, debouncedName],
     queryFn: async () => {
-      const response = await jobApi.getAll(decodedSchedulerName, page, pageSize);
+      const response = await jobApi.getAll(decodedSchedulerName, page, pageSize, undefined, debouncedGroup || undefined, debouncedName || undefined);
       if (!response.success) throw new Error(response.errorMessage);
       return response.data;
     },
@@ -281,6 +302,45 @@ const JobsPage: React.FC = () => {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            {/* Group filter */}
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Filter Group..."
+                value={groupFilter}
+                onChange={(e) => setGroupFilter(e.target.value)}
+                className="w-36 pl-7 pr-7 py-1.5 text-sm bg-slate-700 text-slate-200 rounded-lg border border-slate-600 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+              {groupFilter && (
+                <button
+                  onClick={() => setGroupFilter('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            {/* Name filter */}
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Filter Name..."
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+                className="w-36 pl-7 pr-7 py-1.5 text-sm bg-slate-700 text-slate-200 rounded-lg border border-slate-600 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+              {nameFilter && (
+                <button
+                  onClick={() => setNameFilter('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="w-px h-6 bg-slate-600" />
             <button
               onClick={() => refetch()}
               className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
