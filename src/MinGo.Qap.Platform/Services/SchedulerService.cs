@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MinGo.Qap.Platform.Caching;
 using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.Data.Entities;
 using MinGo.Qap.Shared.Models;
@@ -11,13 +12,16 @@ namespace MinGo.Qap.Platform.Services;
 public class SchedulerService
 {
     private readonly PlatformDbContext _dbContext;
+    private readonly IManifestCacheService _manifestCache;
     private readonly ILogger<SchedulerService> _logger;
 
     public SchedulerService(
         PlatformDbContext dbContext,
+        IManifestCacheService manifestCache,
         ILogger<SchedulerService> logger)
     {
         _dbContext = dbContext;
+        _manifestCache = manifestCache;
         _logger = logger;
     }
 
@@ -62,8 +66,11 @@ public class SchedulerService
 
         await _dbContext.SaveChangesAsync();
 
+        // Agent 重新上报 Scheduler = Agent 重连或重启，清除 manifest 缓存
+        _manifestCache.InvalidateForSchedulers(request.Schedulers.Select(s => s.SchedulerName));
+
         _logger.LogInformation(
-            "Agent {AgentId} reported {Count} schedulers",
+            "Agent {AgentId} reported {Count} schedulers, manifest cache cleared",
             agentId, request.Schedulers.Count);
     }
 

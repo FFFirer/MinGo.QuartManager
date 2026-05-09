@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MinGo.Qap.Platform.Caching;
 using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.NSwag;
 using MinGo.Qap.Platform.Services;
@@ -58,6 +59,10 @@ builder.Services.AddScoped<SchedulerRouterService>();
 builder.Services.AddScoped<IAgentProxyService, AgentProxyService>();
 builder.Services.AddScoped<IJobService, JobService>();
 builder.Services.AddHttpContextAccessor();
+
+// 5. Manifest 缓存（Singleton，线程安全）
+builder.Services.Configure<ManifestCacheOptions>(builder.Configuration.GetSection(ManifestCacheOptions.SectionName));
+builder.Services.AddSingleton<IManifestCacheService, ManifestCacheService>();
 
 var app = builder.Build();
 

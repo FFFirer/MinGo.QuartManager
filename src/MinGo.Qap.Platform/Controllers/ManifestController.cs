@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using MinGo.Qap.Platform.Caching;
 using MinGo.Qap.Platform.Services;
 using MinGo.Qap.Shared.Attributes;
 using MinGo.Qap.Shared.Models;
@@ -12,12 +13,16 @@ namespace MinGo.Qap.Platform.Controllers;
 [Route("api/schedulers/{schedulerName}/manifest")]
 public class ManifestController : ControllerBase
 {
-    private static readonly Dictionary<string, JobManifestDto> _manifestCache = new();
+    private readonly IManifestCacheService _cache;
     private readonly IAgentProxyService _agentProxy;
     private readonly ILogger<ManifestController> _logger;
 
-    public ManifestController(IAgentProxyService agentProxy, ILogger<ManifestController> logger)
+    public ManifestController(
+        IManifestCacheService cache,
+        IAgentProxyService agentProxy,
+        ILogger<ManifestController> logger)
     {
+        _cache = cache;
         _agentProxy = agentProxy;
         _logger = logger;
     }
@@ -40,7 +45,7 @@ public class ManifestController : ControllerBase
         }
 
         // 存储到内存缓存
-        _manifestCache[schedulerName] = manifest;
+        _cache.Set(schedulerName, manifest);
 
         _logger.LogInformation("Manifest received for scheduler {SchedulerName} with {JobCount} job types",
             schedulerName, manifest.Jobs.Count);
@@ -60,12 +65,13 @@ public class ManifestController : ControllerBase
             return BadRequest("SchedulerName is required");
         }
 
-        if (_manifestCache.TryGetValue(schedulerName, out var manifest))
+        if (_cache.TryGet(schedulerName, out var cachedManifest))
         {
-            return Ok(ApiResponse<JobManifestDto>.Ok(manifest));
+            _logger.LogDebug("Manifest cache hit for scheduler {SchedulerName}", schedulerName);
+            return Ok(ApiResponse<JobManifestDto>.Ok(cachedManifest));
         }
 
-        // 缓存未命中，从 Agent 实时获取
+        // 缓存未命中或已过期，从 Agent 实时获取
         try
         {
             _logger.LogInformation("Manifest cache miss for scheduler {SchedulerName}, forwarding to agent", schedulerName);
@@ -73,7 +79,9 @@ public class ManifestController : ControllerBase
 
             if (agentManifest != null)
             {
-                _manifestCache[schedulerName] = agentManifest;
+                _cache.Set(schedulerName, agentManifest);
+                _logger.LogInformation("Manifest cached for scheduler {SchedulerName} with {JobCount} job types",
+                    schedulerName, agentManifest.Jobs.Count);
                 return Ok(ApiResponse<JobManifestDto>.Ok(agentManifest));
             }
         }
