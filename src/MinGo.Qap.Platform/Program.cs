@@ -75,8 +75,16 @@ if (app.Environment.IsDevelopment())
 }
 
 // app.UseHttpsRedirection();
+
+// 7. 静态文件托管 (wwwroot — 包含生产构建的 UI)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthorization();
 app.MapControllers();
+
+// 8. SPA 回退路由：非 API 路径返回 index.html，支持 React Router 前端路由
+app.MapFallbackToFile("index.html");
 
 // 7. 数据库迁移
 using (var scope = app.Services.CreateScope())

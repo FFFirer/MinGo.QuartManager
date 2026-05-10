@@ -1,21 +1,47 @@
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-WORKDIR /app
-EXPOSE 80
-EXPOSE 443
+# =============================================================================
+# Stage 1: UI Build (Node.js)
+# =============================================================================
+FROM node:22-alpine AS ui-build
+WORKDIR /ui
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Enable pnpm via corepack
+RUN corepack enable
+
+# Install dependencies (cached layer)
+COPY src/MinGo.Qap.UI/package.json src/MinGo.Qap.UI/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Build UI
+COPY src/MinGo.Qap.UI/ .
+RUN pnpm build
+
+# =============================================================================
+# Stage 2: .NET Build
+# =============================================================================
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dotnet-build
 WORKDIR /src
-COPY ["src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj", "src/MinGo.Qap.Platform/"]
-COPY ["src/MinGo.Qap.Shared/MinGo.Qap.Shared.csproj", "src/MinGo.Qap.Shared/"]
-RUN dotnet restore "src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj"
+
+# Restore NuGet packages (cached layer)
+COPY src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj src/MinGo.Qap.Platform/
+COPY src/MinGo.Qap.Shared/MinGo.Qap.Shared.csproj src/MinGo.Qap.Shared/
+RUN dotnet restore src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj
+
+# Copy full source
 COPY . .
-WORKDIR "/src/src/MinGo.Qap.Platform/"
-RUN dotnet build "MinGo.Qap.Platform.csproj" -c Release -o /app/build
 
-FROM build AS publish
-RUN dotnet publish "MinGo.Qap.Platform.csproj" -c Release -o /app/publish /p:UseAppHost=false
+# Copy UI build output into wwwroot
+COPY --from=ui-build /ui/dist src/MinGo.Qap.Platform/wwwroot/
 
-FROM base AS final
+# Publish
+WORKDIR /src/src/MinGo.Qap.Platform
+RUN dotnet publish MinGo.Qap.Platform.csproj -c Release -o /app/publish /p:UseAppHost=false
+
+# =============================================================================
+# Stage 3: Runtime
+# =============================================================================
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --from=dotnet-build /app/publish .
+EXPOSE 80
+
 ENTRYPOINT ["dotnet", "MinGo.Qap.Platform.dll"]
