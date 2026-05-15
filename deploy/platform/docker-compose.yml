@@ -3,7 +3,7 @@ version: '3.8'
 services:
   platform:
     build:
-      context: ../../src/MinGo.Qap.Platform
+      context: ../..
       dockerfile: Dockerfile
     ports:
       - "5000:80"

@@ -5,11 +5,11 @@ EXPOSE 443
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY ["MinGo.Qap.Platform.csproj", "."]
-COPY ["..\MinGo.Qap.Shared\MinGo.Qap.Shared.csproj", "..\MinGo.Qap.Shared\"]
-RUN dotnet restore "./MinGo.Qap.Platform.csproj"
+COPY ["src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj", "src/MinGo.Qap.Platform/"]
+COPY ["src/MinGo.Qap.Shared/MinGo.Qap.Shared.csproj", "src/MinGo.Qap.Shared/"]
+RUN dotnet restore "src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj"
 COPY . .
-WORKDIR "/src/"
+WORKDIR "/src/src/MinGo.Qap.Platform/"
 RUN dotnet build "MinGo.Qap.Platform.csproj" -c Release -o /app/build
 
 FROM build AS publish
