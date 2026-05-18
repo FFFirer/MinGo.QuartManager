@@ -4,8 +4,8 @@
 FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/node:20-alpine AS ui-build
 WORKDIR /ui
 
-# Enable pnpm via corepack
-RUN corepack enable
+# Install pnpm (bypass corepack for Node 20 compatibility)
+RUN npm install -g pnpm
 
 # Install dependencies (cached layer)
 COPY src/MinGo.Qap.UI/package.json src/MinGo.Qap.UI/pnpm-lock.yaml ./
