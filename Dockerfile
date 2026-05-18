@@ -1,7 +1,7 @@
 # =============================================================================
 # Stage 1: UI Build (Node.js)
 # =============================================================================
-FROM node:22-alpine AS ui-build
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/node:20-alpine AS ui-build
 WORKDIR /ui
 
 # Enable pnpm via corepack

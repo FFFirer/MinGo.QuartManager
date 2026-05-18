@@ -64,7 +64,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: src/MinGo.Qap.Platform/Dockerfile
+          file: ./Dockerfile
           push: true
           tags: |
             ${{ env.CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
