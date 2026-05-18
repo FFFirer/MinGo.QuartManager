@@ -42,6 +42,10 @@ RUN dotnet publish MinGo.Qap.Platform.csproj -c Release -o /app/publish /p:UseAp
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=dotnet-build /app/publish .
+
+# Install Kerberos library (required by Npgsql at runtime)
+RUN apt-get update && apt-get install -y libkrb5-3 && rm -rf /var/lib/apt/lists/*
+
 EXPOSE 80
 
 ENTRYPOINT ["dotnet", "MinGo.Qap.Platform.dll"]
