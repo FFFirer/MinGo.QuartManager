@@ -1,10 +1,10 @@
 # =============================================================================
 # Stage 1: UI Build (Node.js)
 # =============================================================================
-FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/node:20-alpine AS ui-build
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/node:22-alpine AS ui-build
 WORKDIR /ui
 
-# Install pnpm (bypass corepack for Node 20 compatibility)
+# Install pnpm globally
 RUN npm install -g pnpm
 
 # Install dependencies (cached layer)
