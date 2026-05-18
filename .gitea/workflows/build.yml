@@ -1,11 +1,11 @@
 # =============================================================================
-# MinGo.QuartManager Build & Deploy Pipeline
+# MinGo.QuartManager Build & Push Pipeline
 #
 # Triggers:
-#   - release (published):  Full pipeline → build → push → deploy → nuget push
-#   - workflow_dispatch:    Build + push only (manual deployment)
+#   - release (published):  Build + push Docker image
+#   - workflow_dispatch:    Build + push Docker image (manual)
 # =============================================================================
-name: Build and Deploy
+name: Build and Push
 
 on:
   release:
@@ -21,7 +21,6 @@ on:
         default: staging
 
 env:
-  DOTNET_VERSION: '10.0'
   CONTAINER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
   CONTAINER_REGISTRY_USERNAME: ${{ vars.DOCKER_USERNAME }}
   CONTAINER_REGISTRY_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
@@ -71,79 +70,4 @@ jobs:
             ${{ env.CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
             ${{ env.CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-  # ===========================================================================
-  # Job 2: Deploy to Debian 12 server (release only)
-  # ===========================================================================
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.event_name == 'release'
 
-    steps:
-      - name: Deploy via SSH
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-        run: |
-          # Setup SSH key
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          cat >> ~/.ssh/config <<EOF
-          Host deploy-server
-            HostName ${{ secrets.DEPLOY_HOST }}
-            User ${{ secrets.DEPLOY_USER }}
-            IdentityFile ~/.ssh/deploy_key
-            StrictHostKeyChecking no
-          EOF
-
-          # Execute deployment
-          ssh deploy-server "
-            set -e
-            cd /opt/quartmanager
-            docker compose pull
-            docker compose up -d --remove-orphans
-            docker image prune -f
-            echo 'Deployment completed successfully'
-          "
-
-  # ===========================================================================
-  # Job 3: Publish Agent NuGet package (release only)
-  # ===========================================================================
-  publish-nuget:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.event_name == 'release'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Extract version from tag
-        run: |
-          VERSION="${GITHUB_REF#refs/*/}"
-          VERSION="${VERSION#v}"  # Remove leading 'v' (e.g. v1.2.3 → 1.2.3)
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
-
-      - name: Pack NuGet package
-        run: |
-          dotnet pack src/MinGo.Qap.Agent/MinGo.Qap.Agent.csproj \
-            -c Release \
-            -p:PackageVersion=${{ env.VERSION }} \
-            -o ./nupkg
-
-      - name: Push NuGet package
-        env:
-          NUGET_SERVER_URL: ${{ vars.NUGET_SERVER_URL }}
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: |
-          dotnet nuget push ./nupkg/*.nupkg \
-            --source ${{ env.NUGET_SERVER_URL }} \
-            --api-key ${{ env.NUGET_API_KEY }} \
-            --skip-duplicate
