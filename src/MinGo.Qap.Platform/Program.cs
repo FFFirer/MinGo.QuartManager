@@ -105,7 +105,9 @@ using (var scope = app.Services.CreateScope())
         var pendingMigrations = db.Database.GetPendingMigrations().ToList();
         if (pendingMigrations.Any())
         {
-            logger.LogWarning("生产环境检测到有 {Count} 个待处理的数据库迁移: {Migrations}. 请手动运行 'dotnet ef database update' 应用迁移。",
+            logger.LogWarning("生产环境检测到有 {Count} 个待处理的数据库迁移: {Migrations}. " +
+                "请使用镜像内 efbundle 执行迁移：\n" +
+                "  docker run --rm -e ConnectionStrings__PlatformDb=\"<连接字符串>\" <镜像名> dotnet /app/efbundle.dll",
                 pendingMigrations.Count,
                 string.Join(", ", pendingMigrations));
         }

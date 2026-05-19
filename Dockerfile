@@ -36,6 +36,11 @@ COPY --from=ui-build /ui/dist src/MinGo.Qap.Platform/wwwroot/
 WORKDIR /src/src/MinGo.Qap.Platform
 RUN dotnet publish MinGo.Qap.Platform.csproj -c Release -o /app/publish /p:UseAppHost=false
 
+# Install dotnet-ef tool and generate EF Core migration bundle
+RUN dotnet tool install --global dotnet-ef
+ENV PATH="$PATH:/root/.dotnet/tools"
+RUN dotnet ef migrations bundle --project . --output /app/publish/efbundle --force
+
 # =============================================================================
 # Stage 3: Runtime
 # =============================================================================
