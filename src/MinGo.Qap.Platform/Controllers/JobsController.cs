@@ -13,11 +13,13 @@ namespace MinGo.Qap.Platform.Controllers;
 public class JobsController : ControllerBase
 {
     private readonly IJobService _jobService;
+    private readonly IExecutionLogService _executionLogService;
     private readonly ILogger<JobsController> _logger;
 
-    public JobsController(IJobService jobService, ILogger<JobsController> logger)
+    public JobsController(IJobService jobService, IExecutionLogService executionLogService, ILogger<JobsController> logger)
     {
         _jobService = jobService;
+        _executionLogService = executionLogService;
         _logger = logger;
     }
 
@@ -215,5 +217,42 @@ public class JobsController : ControllerBase
         {
             return BadRequest(ApiResponse<object>.Fail(ex.Message));
         }
+    }
+
+    /// <summary>
+    /// 批量操作 Job（trigger/pause/resume/delete）
+    /// </summary>
+    [HttpPost("batch")]
+    public async Task<ActionResult<ApiResponse<BatchJobResultDto>>> Batch(
+        string schedulerName,
+        [FromBody] BatchJobRequest request)
+    {
+        try
+        {
+            var result = await _jobService.BatchAsync(schedulerName, request);
+            return Ok(ApiResponse<BatchJobResultDto>.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Batch {Action} failed on scheduler {SchedulerName}", request.Action, schedulerName);
+            return BadRequest(ApiResponse<BatchJobResultDto>.Fail(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// 查询 Job 执行日志
+    /// </summary>
+    [HttpGet("{name}/logs")]
+    [HttpGet("{name}/{group}/logs")]
+    public async Task<ActionResult<ApiResponse<PagedResponse<ExecutionLogEntryDto>>>> GetLogs(
+        string schedulerName,
+        string name,
+        string? group,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var jobKey = new JobKeyDto(name, group ?? "DEFAULT");
+        var result = await _executionLogService.QueryAsync(schedulerName, jobKey, page, pageSize);
+        return Ok(ApiResponse<PagedResponse<ExecutionLogEntryDto>>.Ok(result));
     }
 }

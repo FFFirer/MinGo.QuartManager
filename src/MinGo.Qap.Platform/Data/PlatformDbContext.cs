@@ -33,6 +33,11 @@ public class PlatformDbContext : DbContext
     /// </summary>
     public DbSet<JobDefinition> JobDefinitions { get; set; } = null!;
 
+    /// <summary>
+    /// 执行日志表
+    /// </summary>
+    public DbSet<ExecutionLog> ExecutionLogs { get; set; } = null!;
+
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
         base.ConfigureConventions(builder);
@@ -153,6 +158,26 @@ public class PlatformDbContext : DbContext
                 entity.HasIndex(e => new { e.SchedulerName, e.Group, e.Name }).IsUnique();
                 entity.HasIndex(e => new { e.SchedulerName, e.JobKey }).IsUnique();
                 entity.HasIndex(e => e.Status);
+            });
+
+            // ExecutionLog 配置
+            modelBuilder.Entity<ExecutionLog>(entity =>
+            {
+                entity.ToTable("ExecutionLogs");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasMaxLength(64);
+                entity.Property(e => e.SchedulerName).HasMaxLength(256).IsRequired();
+                entity.Property(e => e.JobName).HasMaxLength(256).IsRequired();
+                entity.Property(e => e.JobGroup).HasMaxLength(256).IsRequired();
+                entity.Property(e => e.AgentId).HasMaxLength(64).IsRequired();
+                entity.Property(e => e.ErrorMessage).HasMaxLength(4000);
+                entity.Property(e => e.StackTrace).HasColumnType("text");
+
+                // 索引
+                entity.HasIndex(e => new { e.SchedulerName, e.JobName, e.JobGroup });
+                entity.HasIndex(e => e.StartTime);
+                entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.AgentId);
             });
 
 

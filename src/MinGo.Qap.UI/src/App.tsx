@@ -9,6 +9,7 @@ import SchedulerDetailPage from './pages/SchedulerDetailPage';
 import JobsPage from './pages/JobsPage';
 import JobDetailPage from './pages/JobDetailPage';
 import CreateJobPage from './pages/CreateJobPage';
+import ExecutionLogsPage from './pages/ExecutionLogsPage';
 import PlatformDashboardPage from './pages/PlatformDashboardPage';
 
 import ToastProvider from './components/ToastProvider';
@@ -62,6 +63,7 @@ function AppLayout() {
             <Route path="/schedulers/:schedulerName/jobs/create" element={<CreateJobPage />} />
             <Route path="/schedulers/:schedulerName/jobs/:name" element={<JobDetailPage />} />
             <Route path="/schedulers/:schedulerName/jobs/:name/:group" element={<JobDetailPage />} />
+            <Route path="/schedulers/:schedulerName/logs" element={<ExecutionLogsPage />} />
           </Routes>
         </main>
         <FloatingActionPalette />

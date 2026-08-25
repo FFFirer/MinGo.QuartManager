@@ -148,3 +148,36 @@ public class JobDetailDto
     /// <summary>关联的 Trigger 列表</summary>
     public List<TriggerSummaryDto> Triggers { get; set; } = new();
 }
+
+/// <summary>
+/// Job 批量操作请求
+/// </summary>
+public class BatchJobRequest
+{
+    /// <summary>
+    /// 操作类型: trigger, pause, resume, delete
+    /// </summary>
+    public string Action { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 要操作的 Job Key 列表
+    /// </summary>
+    public List<JobKeyDto> JobKeys { get; set; } = new();
+}
+
+/// <summary>
+/// Job 批量操作结果
+/// </summary>
+public class BatchJobResultDto
+{
+    public int Total { get; set; }
+    public int Successes { get; set; }
+    public int Failures { get; set; }
+    public List<BatchJobErrorItem> Errors { get; set; } = new();
+}
+
+public class BatchJobErrorItem
+{
+    public JobKeyDto JobKey { get; set; } = new();
+    public string ErrorMessage { get; set; } = string.Empty;
+}

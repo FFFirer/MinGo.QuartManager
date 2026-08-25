@@ -58,6 +58,7 @@ builder.Services.AddScoped<SchedulerService>();
 builder.Services.AddScoped<SchedulerRouterService>();
 builder.Services.AddScoped<IAgentProxyService, AgentProxyService>();
 builder.Services.AddScoped<IJobService, JobService>();
+builder.Services.AddScoped<IExecutionLogService, ExecutionLogService>();
 builder.Services.AddHttpContextAccessor();
 
 // 5. Manifest 缓存（Singleton，线程安全）

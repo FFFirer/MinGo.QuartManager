@@ -14,15 +14,18 @@ public class AgentsController : ControllerBase
 {
     private readonly AgentService _agentService;
     private readonly SchedulerService _schedulerService;
+    private readonly IExecutionLogService _executionLogService;
     private readonly ILogger<AgentsController> _logger;
 
     public AgentsController(
         AgentService agentService,
         SchedulerService schedulerService,
+        IExecutionLogService executionLogService,
         ILogger<AgentsController> logger)
     {
         _agentService = agentService;
         _schedulerService = schedulerService;
+        _executionLogService = executionLogService;
         _logger = logger;
     }
 
@@ -153,5 +156,25 @@ public class AgentsController : ControllerBase
     {
         var schedulers = await _schedulerService.GetSchedulersByAgentAsync(agentId);
         return Ok(ApiResponse<List<AgentSchedulerDto>>.Ok(schedulers));
+    }
+
+    /// <summary>
+    /// 接收 Agent 上报的执行日志
+    /// </summary>
+    [HttpPost("{agentId}/logs")]
+    public async Task<ActionResult<ApiResponse<object>>> ReceiveLogs(
+        string agentId,
+        [FromBody] List<ExecutionLogDto> logs)
+    {
+        try
+        {
+            var count = await _executionLogService.ReceiveLogsAsync(agentId, logs);
+            return Ok(ApiResponse<object>.Ok(new { received = count }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to receive logs from agent {AgentId}", agentId);
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
     }
 }

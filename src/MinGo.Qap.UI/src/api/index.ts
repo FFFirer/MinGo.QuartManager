@@ -16,7 +16,9 @@ import type {
   SchedulerReportRequest,
   RegisterAgentRequest,
   RegisterAgentResponse,
-  PagedResponse
+  PagedResponse,
+  ExecutionLogEntryDto,
+  BatchJobResultDto
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/';
@@ -110,6 +112,14 @@ export const jobApi = {
 
   resume: (schedulerName: string, jobKey: JobKeyDto) =>
     api.post<ApiResponse<{}>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${buildJobUrlPath(jobKey.name, jobKey.group)}/resume`).then(r => r.data),
+
+  batch: (schedulerName: string, action: string, jobKeys: JobKeyDto[]) =>
+    api.post<ApiResponse<BatchJobResultDto>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/batch`, { action, jobKeys }).then(r => r.data),
+
+  getLogs: (schedulerName: string, jobName: string, group: string, page = 1, pageSize = 20) =>
+    api.get<ApiResponse<PagedResponse<ExecutionLogEntryDto>>>(`/api/schedulers/${encodeURIComponent(schedulerName)}/jobs/${buildJobUrlPath(jobName, group)}/logs`, {
+      params: { page, pageSize }
+    }).then(r => r.data),
 };
 
 // Manifest APIs

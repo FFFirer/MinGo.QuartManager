@@ -20,6 +20,7 @@ public interface IJobService
     Task TriggerAsync(string schedulerName, JobKeyDto jobKey);
     Task PauseAsync(string schedulerName, JobKeyDto jobKey);
     Task ResumeAsync(string schedulerName, JobKeyDto jobKey);
+    Task<BatchJobResultDto> BatchAsync(string schedulerName, BatchJobRequest request);
 }
 
 /// <summary>
@@ -338,6 +339,58 @@ public class JobService : IJobService
 
         _logger.LogInformation("Job resumed: {JobKey} for scheduler {SchedulerName}",
             jobKey.ToString(), schedulerName);
+    }
+
+    public async Task<BatchJobResultDto> BatchAsync(string schedulerName, BatchJobRequest request)
+    {
+        var result = new BatchJobResultDto { Total = request.JobKeys.Count };
+
+        foreach (var jobKey in request.JobKeys)
+        {
+            try
+            {
+                switch (request.Action.ToLowerInvariant())
+                {
+                    case "trigger":
+                        await TriggerAsync(schedulerName, jobKey);
+                        break;
+                    case "pause":
+                        await PauseAsync(schedulerName, jobKey);
+                        break;
+                    case "resume":
+                        await ResumeAsync(schedulerName, jobKey);
+                        break;
+                    case "delete":
+                        await DeleteAsync(schedulerName, jobKey);
+                        break;
+                    default:
+                        result.Failures++;
+                        result.Errors.Add(new BatchJobErrorItem
+                        {
+                            JobKey = jobKey,
+                            ErrorMessage = $"Unknown action: {request.Action}"
+                        });
+                        continue;
+                }
+                result.Successes++;
+            }
+            catch (Exception ex)
+            {
+                result.Failures++;
+                result.Errors.Add(new BatchJobErrorItem
+                {
+                    JobKey = jobKey,
+                    ErrorMessage = ex.Message
+                });
+                _logger.LogWarning(ex, "Batch {Action} failed for job {JobKey} on scheduler {SchedulerName}",
+                    request.Action, jobKey.ToString(), schedulerName);
+            }
+        }
+
+        _logger.LogInformation("Batch {Action} completed on {SchedulerName}: {Successes}/{Total} succeeded",
+            request.Action, schedulerName, result.Successes, result.Total);
+
+        return result;
     }
 
     #region Helper Methods

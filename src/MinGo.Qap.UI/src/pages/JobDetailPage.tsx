@@ -10,7 +10,8 @@ import JobParamsDisplay from '../components/JobParamsDisplay';
 import JobTypeDisplay from '../components/JobTypeDisplay';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
-import type { JobDetailDto, JobKeyDto, ScheduleDto, QuartzOptionsDto, TriggerSummaryDto } from '../types';
+import PaginationBar from '../components/PaginationBar';
+import type { JobDetailDto, JobKeyDto, ScheduleDto, QuartzOptionsDto, TriggerSummaryDto, ExecutionLogEntryDto } from '../types';
 
 /** Safely parse a JSON string, falling back to default on failure */
 function tryParseJson<T>(raw: string, fallback: T): T {
@@ -28,6 +29,7 @@ const JobDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [logPage, setLogPage] = useState(1);
 
   const decodedSchedulerName = schedulerName ? decodeURIComponent(schedulerName) : '';
   const decodedName = name ? decodeURIComponent(name) : '';
@@ -56,6 +58,20 @@ const JobDetailPage: React.FC = () => {
     },
     enabled: !!decodedName,
   });
+
+  // Fetch execution logs
+  const { data: logsResponse } = useQuery({
+    queryKey: ['job-logs', decodedSchedulerName, decodedName, decodedGroup, logPage],
+    queryFn: async () => {
+      const response = await jobApi.getLogs(decodedSchedulerName, decodedName, decodedGroup, logPage, 10);
+      if (!response.success) throw new Error(response.errorMessage);
+      return response.data;
+    },
+    enabled: !!decodedName,
+  });
+
+  const logs = logsResponse?.items ?? [];
+  const logTotalPages = logsResponse?.totalPages ?? 1;
 
   // Fetch manifest for parameter metadata
   const { data: manifest } = useQuery({
@@ -321,6 +337,53 @@ const JobDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Execution History */}
+      <div className="mb-6">
+        <h3 className="text-lg font-medium text-slate-200 mb-3">Execution History</h3>
+        <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+          <DataTable
+            columns={[
+              {
+                header: 'Start Time',
+                accessor: (row: ExecutionLogEntryDto) => new Date(row.startTime).toLocaleString(),
+              },
+              {
+                header: 'Duration',
+                accessor: (row: ExecutionLogEntryDto) => row.durationMs != null ? `${row.durationMs}ms` : '-',
+              },
+              {
+                header: 'Status',
+                accessor: (row: ExecutionLogEntryDto) => (
+                  <span className={`text-sm font-medium ${row.success ? 'text-green-400' : 'text-red-400'}`}>
+                    {row.success ? 'Success' : 'Failed'}
+                  </span>
+                ),
+              },
+              {
+                header: 'Error',
+                accessor: (row: ExecutionLogEntryDto) => row.errorMessage ? (
+                  <span className="text-xs text-red-400 truncate max-w-xs" title={row.errorMessage}>
+                    {row.errorMessage}
+                  </span>
+                ) : '-',
+              },
+            ]}
+            data={logs}
+            emptyMessage="No execution history"
+          />
+        </div>
+        {logTotalPages > 1 && (
+          <PaginationBar
+            page={logPage}
+            pageSize={10}
+            totalItems={logsResponse?.total ?? 0}
+            totalPages={logTotalPages}
+            onPageChange={setLogPage}
+            onPageSizeChange={() => {}}
+          />
+        )}
+      </div>
 
       {/* Delete Confirmation */}
       {isDeleteConfirmOpen && (

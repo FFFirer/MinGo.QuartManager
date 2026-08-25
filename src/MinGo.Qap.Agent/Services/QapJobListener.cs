@@ -25,8 +25,9 @@ public class QapJobListener : IJobListener
         {
             var qKey = context.JobDetail.Key;
             var jobKey = new JobKeyDto(qKey.Name, qKey.Group);
-            _logService.RecordJobStarted(jobKey);
-            _logger.LogDebug("Job started: {JobKey}", jobKey.ToString());
+            var schedulerName = context.Scheduler.SchedulerName;
+            _logService.RecordJobStarted(schedulerName, jobKey);
+            _logger.LogDebug("Job started: {JobKey} on {Scheduler}", jobKey.ToString(), schedulerName);
         }
         catch (Exception ex)
         {
@@ -59,9 +60,11 @@ public class QapJobListener : IJobListener
         {
             var qKey = context.JobDetail.Key;
             var jobKey = new JobKeyDto(qKey.Name, qKey.Group);
+            var schedulerName = context.Scheduler.SchedulerName;
             var success = jobException == null;
 
             _logService.RecordJobCompleted(
+                schedulerName,
                 jobKey,
                 success,
                 jobException?.Message,

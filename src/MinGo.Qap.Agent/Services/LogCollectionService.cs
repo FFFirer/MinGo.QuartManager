@@ -15,8 +15,8 @@ public interface ILogCollectionService
 {
     void Start();
     Task StopAsync();
-    void RecordJobStarted(JobKeyDto jobKey);
-    void RecordJobCompleted(JobKeyDto jobKey, bool success, string? errorMessage = null, string? stackTrace = null, long? durationMs = null);
+    void RecordJobStarted(string? schedulerName, JobKeyDto jobKey);
+    void RecordJobCompleted(string? schedulerName, JobKeyDto jobKey, bool success, string? errorMessage = null, string? stackTrace = null, long? durationMs = null);
     Task FlushPendingLogsAsync();
 }
 
@@ -62,12 +62,13 @@ public class LogCollectionService : ILogCollectionService
         _logger.LogInformation("LogCollectionService stopped");
     }
 
-    public void RecordJobStarted(JobKeyDto jobKey)
+    public void RecordJobStarted(string? schedulerName, JobKeyDto jobKey)
     {
         if (!_started) return;
         var log = new ExecutionLogDto
         {
             JobKey = jobKey,
+            SchedulerName = schedulerName,
             StartTime = DateTimeOffset.UtcNow,
             EndTime = null,
             Success = true
@@ -75,12 +76,13 @@ public class LogCollectionService : ILogCollectionService
         AddLog(log);
     }
 
-    public void RecordJobCompleted(JobKeyDto jobKey, bool success, string? errorMessage = null, string? stackTrace = null, long? durationMs = null)
+    public void RecordJobCompleted(string? schedulerName, JobKeyDto jobKey, bool success, string? errorMessage = null, string? stackTrace = null, long? durationMs = null)
     {
         if (!_started) return;
         var log = new ExecutionLogDto
         {
             JobKey = jobKey,
+            SchedulerName = schedulerName,
             StartTime = DateTimeOffset.UtcNow,
             EndTime = DateTimeOffset.UtcNow,
             DurationMs = durationMs,

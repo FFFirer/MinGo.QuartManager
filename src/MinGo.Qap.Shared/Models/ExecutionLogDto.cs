@@ -1,7 +1,7 @@
 namespace MinGo.Qap.Shared.Models;
 
 /// <summary>
-/// 作业执行日志 DTO
+/// 作业执行日志 DTO（Agent 上报用）
 /// </summary>
 public class ExecutionLogDto
 {
@@ -9,6 +9,11 @@ public class ExecutionLogDto
     /// 作业 Key
     /// </summary>
     public JobKeyDto JobKey { get; set; }
+    
+    /// <summary>
+    /// Scheduler 名称
+    /// </summary>
+    public string? SchedulerName { get; set; }
     
     /// <summary>
     /// 开始时间
@@ -44,4 +49,21 @@ public class ExecutionLogDto
     /// 自定义字段
     /// </summary>
     public Dictionary<string, object>? CustomFields { get; set; }
+}
+
+/// <summary>
+/// 执行日志持久化查询返回 DTO
+/// </summary>
+public class ExecutionLogEntryDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string SchedulerName { get; set; } = string.Empty;
+    public JobKeyDto JobKey { get; set; } = new();
+    public string AgentId { get; set; } = string.Empty;
+    public DateTimeOffset StartTime { get; set; }
+    public DateTimeOffset? EndTime { get; set; }
+    public long? DurationMs { get; set; }
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    public string? StackTrace { get; set; }
 }

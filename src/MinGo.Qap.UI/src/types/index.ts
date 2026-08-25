@@ -270,6 +270,38 @@ export interface JobQuery extends PagedQuery {
   keyword?: string;
 }
 
+// Execution Log types
+export interface ExecutionLogEntryDto {
+  id: string;
+  schedulerName: string;
+  jobKey: JobKeyDto;
+  agentId: string;
+  startTime: string;
+  endTime?: string;
+  durationMs?: number;
+  success: boolean;
+  errorMessage?: string;
+  stackTrace?: string;
+}
+
+// Batch Job types
+export interface BatchJobRequest {
+  action: string;
+  jobKeys: JobKeyDto[];
+}
+
+export interface BatchJobErrorItem {
+  jobKey: JobKeyDto;
+  errorMessage: string;
+}
+
+export interface BatchJobResultDto {
+  total: number;
+  successes: number;
+  failures: number;
+  errors: BatchJobErrorItem[];
+}
+
 // Job Manifest
 export interface ParameterInfoDto {
   name: string;

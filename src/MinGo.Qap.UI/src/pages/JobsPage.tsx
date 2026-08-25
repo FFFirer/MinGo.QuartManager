@@ -112,19 +112,11 @@ const JobsPage: React.FC = () => {
     mutationFn: async (action: 'trigger' | 'pause' | 'resume' | 'delete') => {
       const keys = Array.from(selectedKeys);
       if (keys.length === 0) return { total: 0, successes: 0, failures: 0 };
-      const promises = keys.map((key) => {
-        const jobKey = parseCompositeKey(key);
-        switch (action) {
-          case 'trigger': return jobApi.trigger(decodedSchedulerName, jobKey);
-          case 'pause': return jobApi.pause(decodedSchedulerName, jobKey);
-          case 'resume': return jobApi.resume(decodedSchedulerName, jobKey);
-          case 'delete': return jobApi.delete(decodedSchedulerName, jobKey);
-        }
-      });
-      const results = await Promise.allSettled(promises);
-      const successes = results.filter(r => r.status === 'fulfilled').length;
-      const failures = results.filter(r => r.status === 'rejected').length;
-      return { total: keys.length, successes, failures };
+      const jobKeys = keys.map((key) => parseCompositeKey(key));
+      const response = await jobApi.batch(decodedSchedulerName, action, jobKeys);
+      if (!response.success) throw new Error(response.errorMessage);
+      const result = response.data!;
+      return { total: result.total, successes: result.successes, failures: result.failures };
     },
     onSuccess: (payload: any) => {
       const { total, successes, failures } = payload || { total: 0, successes: 0, failures: 0 };
