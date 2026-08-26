@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using MinGo.Qap.Platform.Data;
+using MinGo.Qap.Platform.Data.Entities;
 using MinGo.Qap.Shared;
 using MinGo.Qap.Shared.Models;
+using System.Diagnostics;
 using System.Net.Http.Json;
 
 namespace MinGo.Qap.Platform.Services;
@@ -52,7 +54,12 @@ public class AgentProxyService : IAgentProxyService
     /// </summary>
     public async Task<T?> GetAsync<T>(string schedulerName, string path)
     {
-        var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+        using var activity = QapTelemetry.ActivitySource.StartActivity("qap.proxy.forward");
+        activity?.SetTag("scheduler.name", schedulerName);
+        activity?.SetTag("http.method", "GET");
+        activity?.SetTag("path", path);
+
+        var agent = await RouteAgentAsync(schedulerName);
         if (agent == null)
         {
             throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
@@ -62,13 +69,24 @@ public class AgentProxyService : IAgentProxyService
         var request = new HttpRequestMessage(HttpMethod.Get, $"{agent.Url.TrimEnd('/')}/api/agent/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
 
+        using var _ = QapTelemetry.StartTimer(QapTelemetry.ProxyDuration,
+            [new("scheduler.name", schedulerName), new("http.method", "GET")]);
+        QapTelemetry.ProxyRequests.Add(1,
+            new KeyValuePair<string, object?>("scheduler.name", schedulerName),
+            new KeyValuePair<string, object?>("http.method", "GET"));
+
         var response = await client.SendAsync(request);
         return await HandleResponse<T>(response, schedulerName, path);
     }
 
     public async Task<T?> PostAsync<T>(string schedulerName, string path, object body)
     {
-        var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+        using var activity = QapTelemetry.ActivitySource.StartActivity("qap.proxy.forward");
+        activity?.SetTag("scheduler.name", schedulerName);
+        activity?.SetTag("http.method", "POST");
+        activity?.SetTag("path", path);
+
+        var agent = await RouteAgentAsync(schedulerName);
         if (agent == null)
         {
             throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
@@ -79,13 +97,24 @@ public class AgentProxyService : IAgentProxyService
         request.Headers.Add(SchedulerNameHeader, schedulerName);
         request.Content = JsonContent.Create(body, typeof(object), options: MinGoJsonDefaults.Options);
 
+        using var _ = QapTelemetry.StartTimer(QapTelemetry.ProxyDuration,
+            [new("scheduler.name", schedulerName), new("http.method", "POST")]);
+        QapTelemetry.ProxyRequests.Add(1,
+            new KeyValuePair<string, object?>("scheduler.name", schedulerName),
+            new KeyValuePair<string, object?>("http.method", "POST"));
+
         var response = await client.SendAsync(request);
         return await HandleResponse<T>(response, schedulerName, path);
     }
 
     public async Task<T?> PutAsync<T>(string schedulerName, string path, object body)
     {
-        var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+        using var activity = QapTelemetry.ActivitySource.StartActivity("qap.proxy.forward");
+        activity?.SetTag("scheduler.name", schedulerName);
+        activity?.SetTag("http.method", "PUT");
+        activity?.SetTag("path", path);
+
+        var agent = await RouteAgentAsync(schedulerName);
         if (agent == null)
         {
             throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
@@ -96,13 +125,24 @@ public class AgentProxyService : IAgentProxyService
         request.Headers.Add(SchedulerNameHeader, schedulerName);
         request.Content = JsonContent.Create(body, typeof(object), options: MinGoJsonDefaults.Options);
 
+        using var _ = QapTelemetry.StartTimer(QapTelemetry.ProxyDuration,
+            [new("scheduler.name", schedulerName), new("http.method", "PUT")]);
+        QapTelemetry.ProxyRequests.Add(1,
+            new KeyValuePair<string, object?>("scheduler.name", schedulerName),
+            new KeyValuePair<string, object?>("http.method", "PUT"));
+
         var response = await client.SendAsync(request);
         return await HandleResponse<T>(response, schedulerName, path);
     }
 
     public async Task DeleteAsync(string schedulerName, string path)
     {
-        var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+        using var activity = QapTelemetry.ActivitySource.StartActivity("qap.proxy.forward");
+        activity?.SetTag("scheduler.name", schedulerName);
+        activity?.SetTag("http.method", "DELETE");
+        activity?.SetTag("path", path);
+
+        var agent = await RouteAgentAsync(schedulerName);
         if (agent == null)
         {
             throw new AgentException($"No healthy agent available for scheduler '{schedulerName}'", "NO_HEALTHY_AGENT");
@@ -112,6 +152,12 @@ public class AgentProxyService : IAgentProxyService
         var request = new HttpRequestMessage(HttpMethod.Delete, $"{agent.Url.TrimEnd('/')}/api/agent/{path}");
         request.Headers.Add(SchedulerNameHeader, schedulerName);
 
+        using var _ = QapTelemetry.StartTimer(QapTelemetry.ProxyDuration,
+            [new("scheduler.name", schedulerName), new("http.method", "DELETE")]);
+        QapTelemetry.ProxyRequests.Add(1,
+            new KeyValuePair<string, object?>("scheduler.name", schedulerName),
+            new KeyValuePair<string, object?>("http.method", "DELETE"));
+
         var response = await client.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
@@ -120,6 +166,10 @@ public class AgentProxyService : IAgentProxyService
             _logger.LogError(
                 "Agent request failed: {SchedulerName} {Path} - {StatusCode}: {Error}",
                 schedulerName, path, response.StatusCode, error);
+
+            QapTelemetry.ProxyErrors.Add(1,
+                new KeyValuePair<string, object?>("scheduler.name", schedulerName),
+                new KeyValuePair<string, object?>("error.code", response.StatusCode.ToString()));
 
             throw new AgentException(
                 $"Agent request failed: {response.StatusCode}",
@@ -131,7 +181,7 @@ public class AgentProxyService : IAgentProxyService
     {
         try
         {
-            var agent = await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+            var agent = await RouteAgentAsync(schedulerName);
             if (agent == null) return false;
 
             var client = CreateClient(shortTimeout: true);
@@ -145,6 +195,16 @@ public class AgentProxyService : IAgentProxyService
     }
 
     #region Helper Methods
+
+    /// <summary>
+    /// 路由选择 Agent 并记录耗时指标
+    /// </summary>
+    private async Task<Agent?> RouteAgentAsync(string schedulerName)
+    {
+        using var _ = QapTelemetry.StartTimer(QapTelemetry.AgentRouteDuration,
+            [new("scheduler.name", schedulerName)]);
+        return await _schedulerRouterService.PickAgentForSchedulerAsync(schedulerName);
+    }
 
     private HttpClient CreateClient(bool shortTimeout = false)
     {
@@ -177,6 +237,10 @@ public class AgentProxyService : IAgentProxyService
                     "Agent returned business error for scheduler {SchedulerName} {Path}: {ErrorCode} - {Message}",
                     schedulerName, path, apiEx.ErrorCode, apiEx.Message);
 
+                QapTelemetry.ProxyErrors.Add(1,
+                    new KeyValuePair<string, object?>("scheduler.name", schedulerName),
+                    new KeyValuePair<string, object?>("error.code", apiEx.ErrorCode ?? "API_ERROR"));
+
                 throw new AgentException(apiEx.Message, apiEx.ErrorCode ?? "API_ERROR");
             }
         }
@@ -185,6 +249,10 @@ public class AgentProxyService : IAgentProxyService
         _logger.LogError(
             "Agent request failed: scheduler {SchedulerName} {Path} - {StatusCode}: {Error}",
             schedulerName, path, response.StatusCode, error);
+
+        QapTelemetry.ProxyErrors.Add(1,
+            new KeyValuePair<string, object?>("scheduler.name", schedulerName),
+            new KeyValuePair<string, object?>("error.code", response.StatusCode.ToString()));
 
         throw new AgentException(
             $"Agent request failed: {response.StatusCode}",

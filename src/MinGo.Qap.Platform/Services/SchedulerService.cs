@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MinGo.Qap.Platform.Caching;
 using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.Data.Entities;
+using MinGo.Qap.Shared;
 using MinGo.Qap.Shared.Models;
 
 namespace MinGo.Qap.Platform.Services;
@@ -30,6 +31,10 @@ public class SchedulerService
     /// </summary>
     public async Task ReportSchedulersAsync(string agentId, SchedulerReportRequest request)
     {
+        using var activity = QapTelemetry.ActivitySource.StartActivity("qap.scheduler.report");
+        activity?.SetTag("agent.id", agentId);
+        activity?.SetTag("scheduler.count", request.Schedulers.Count);
+
         var agent = await _dbContext.Agents
             .FirstOrDefaultAsync(a => a.Id == agentId && a.DeletedAt == null);
 

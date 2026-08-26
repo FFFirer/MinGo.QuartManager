@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
+using MinGo.Qap.Shared;
 using MinGo.Qap.Shared.Models;
 
 namespace MinGo.Qap.Platform.Caching;
@@ -27,6 +28,8 @@ public class ManifestCacheService : IManifestCacheService
             if (DateTimeOffset.UtcNow - entry.CachedAt < _cacheTtl)
             {
                 manifest = entry.Manifest;
+                QapTelemetry.CacheHits.Add(1,
+                    new KeyValuePair<string, object?>("scheduler.name", schedulerName));
                 return true;
             }
 
@@ -34,6 +37,8 @@ public class ManifestCacheService : IManifestCacheService
             _cache.TryRemove(schedulerName, out _);
         }
 
+        QapTelemetry.CacheMisses.Add(1,
+            new KeyValuePair<string, object?>("scheduler.name", schedulerName));
         manifest = null;
         return false;
     }
@@ -48,6 +53,8 @@ public class ManifestCacheService : IManifestCacheService
         if (!string.IsNullOrWhiteSpace(schedulerName))
         {
             _cache.TryRemove(schedulerName, out _);
+            QapTelemetry.CacheInvalidations.Add(1,
+                new KeyValuePair<string, object?>("reason", "explicit"));
             _logger.LogDebug("Manifest cache invalidated for scheduler {SchedulerName}", schedulerName);
         }
     }
@@ -67,9 +74,14 @@ public class ManifestCacheService : IManifestCacheService
 
         if (count > 0)
         {
+            QapTelemetry.CacheInvalidations.Add(count,
+                new KeyValuePair<string, object?>("reason", "scheduler_report"));
             _logger.LogDebug("Manifest cache invalidated for {Count} schedulers", count);
         }
     }
+
+    /// <inheritdoc />
+    public int Count => _cache.Count;
 
     private record ManifestCacheEntry(JobManifestDto Manifest, DateTimeOffset CachedAt);
 }

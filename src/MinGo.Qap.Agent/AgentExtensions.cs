@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using MinGo.Qap.Agent.Configuration;
 using MinGo.Qap.Agent.Services;
+using MinGo.Qap.Shared;
 using MinGo.Qap.Shared.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -129,6 +130,20 @@ public static class AgentExtensions
 
         // Register hosted agent lifecycle service (auto-register, heartbeat, graceful shutdown)
         services.AddHostedService<HostedAgentService>();
+    }
+
+    /// <summary>
+    /// 注册 Agent 端的 OTel Observable Gauges。
+    /// 消费者应用应在 AddMinGoAgent() 之后调用此方法。
+    /// </summary>
+    /// <param name="services">服务集合</param>
+    /// <returns>服务集合用于链式调用</returns>
+    public static IServiceCollection AddMinGoAgentTelemetry(this IServiceCollection services)
+    {
+        // Agent Observable Gauges 需要通过 DI 解析服务实例
+        // 使用 IHostedService 启动后注册
+        services.AddHostedService<AgentTelemetryHostedService>();
+        return services;
     }
 
     /// <summary>

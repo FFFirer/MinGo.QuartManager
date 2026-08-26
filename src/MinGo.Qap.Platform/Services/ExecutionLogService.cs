@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.Data.Entities;
+using MinGo.Qap.Shared;
 using MinGo.Qap.Shared.Models;
 
 namespace MinGo.Qap.Platform.Services;
@@ -43,6 +44,10 @@ public class ExecutionLogService : IExecutionLogService
 
     public async Task<int> ReceiveLogsAsync(string agentId, List<ExecutionLogDto> logs)
     {
+        using var activity = QapTelemetry.ActivitySource.StartActivity("qap.logs.receive");
+        activity?.SetTag("agent.id", agentId);
+        activity?.SetTag("log.count", logs?.Count ?? 0);
+
         if (logs == null || logs.Count == 0) return 0;
 
         var entities = logs.Select(log => new ExecutionLog
@@ -65,6 +70,12 @@ public class ExecutionLogService : IExecutionLogService
         await _dbContext.SaveChangesAsync();
 
         _logger.LogInformation("Received {Count} execution logs from agent {AgentId}", entities.Count, agentId);
+
+        QapTelemetry.LogsReceived.Add(entities.Count,
+            new KeyValuePair<string, object?>("agent.id", agentId));
+        QapTelemetry.LogsBatchSize.Record(entities.Count,
+            new KeyValuePair<string, object?>("agent.id", agentId));
+
         return entities.Count;
     }
 

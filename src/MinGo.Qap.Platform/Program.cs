@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using MinGo.Qap.Platform.Caching;
 using MinGo.Qap.Platform.Data;
+using MinGo.Qap.Platform.Data.Entities;
 using MinGo.Qap.Platform.NSwag;
 using MinGo.Qap.Platform.Services;
+using MinGo.Qap.Shared;
+using MinGo.Qap.Shared.Enums;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -46,6 +49,7 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
         tracing
+            .AddSource(QapTelemetry.SourceName)
             .AddAspNetCoreInstrumentation(options =>
             {
                 // 过滤健康检查等噪音请求
@@ -67,6 +71,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics =>
     {
         metrics
+            .AddMeter(QapTelemetry.MeterName)
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddRuntimeInstrumentation();
@@ -145,6 +150,49 @@ builder.Services.Configure<ManifestCacheOptions>(builder.Configuration.GetSectio
 builder.Services.AddSingleton<IManifestCacheService, ManifestCacheService>();
 
 var app = builder.Build();
+
+// 6.1. 注册 OTel Observable Gauges（需要 DI 容器查询 DB）
+var manifestCache = app.Services.GetRequiredService<IManifestCacheService>();
+
+QapTelemetry.Meter.CreateObservableGauge<int>("qap.agents.online", () =>
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+    return db.Agents.Count(a => a.DeletedAt == null && a.Status == "Online");
+});
+
+QapTelemetry.Meter.CreateObservableGauge<int>("qap.agents.warning", () =>
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+    return db.Agents.Count(a => a.DeletedAt == null && a.Status == "Warning");
+});
+
+QapTelemetry.Meter.CreateObservableGauge<int>("qap.agents.offline", () =>
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+    return db.Agents.Count(a => a.DeletedAt == null && a.Status == "Offline");
+});
+
+QapTelemetry.Meter.CreateObservableGauge<int>("qap.cache.entries", () =>
+{
+    return manifestCache.Count;
+});
+
+QapTelemetry.Meter.CreateObservableGauge<int>("qap.jobs.pending_sync", () =>
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+    return db.JobDefinitions.Count(j => j.Status == SyncStatus.Pending);
+});
+
+QapTelemetry.Meter.CreateObservableGauge<int>("qap.jobs.failed_sync", () =>
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+    return db.JobDefinitions.Count(j => j.Status == SyncStatus.Failed);
+});
 
 // 6. 配置 HTTP 管道
 // Swagger disabled temporarily (package unavailable in offline NuGet cache)

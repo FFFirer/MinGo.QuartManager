@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.Data.Entities;
+using MinGo.Qap.Shared;
 using MinGo.Qap.Shared.Enums;
 using MinGo.Qap.Shared.Models;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace MinGo.Qap.Platform.Services;
@@ -52,6 +54,13 @@ public class JobService : IJobService
 
     public async Task<JobDefinitionDto> CreateAsync(string schedulerName, CreateJobRequest request)
     {
+        using var activity = QapTelemetry.ActivitySource.StartActivity("qap.job.declare");
+        activity?.SetTag("job.key", request.JobKey.ToString());
+        activity?.SetTag("scheduler.name", schedulerName);
+
+        using var _ = QapTelemetry.StartTimer(QapTelemetry.JobDeclareDuration,
+            [new("scheduler.name", schedulerName)]);
+
         var jobKey = request.JobKey;
         var jobKeyStr = jobKey.ToString();
 
@@ -134,6 +143,12 @@ public class JobService : IJobService
             _logger.LogInformation("Job declared successfully: {JobKey} on scheduler {SchedulerName}",
                 jobKeyStr, schedulerName);
 
+            QapTelemetry.JobsDeclared.Add(1,
+                new KeyValuePair<string, object?>("scheduler.name", schedulerName),
+                new KeyValuePair<string, object?>("status", "synced"));
+
+            activity?.SetTag("sync.status", "synced");
+
             return MapToDto(jobDef);
         }
         catch (AgentException ex)
@@ -146,6 +161,13 @@ public class JobService : IJobService
 
             _logger.LogError(ex, "Failed to declare job: {JobKey} on scheduler {SchedulerName}",
                 jobKeyStr, schedulerName);
+
+            QapTelemetry.JobsDeclared.Add(1,
+                new KeyValuePair<string, object?>("scheduler.name", schedulerName),
+                new KeyValuePair<string, object?>("status", "failed"));
+
+            activity?.SetTag("sync.status", "failed");
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
             throw;
         }
@@ -343,6 +365,11 @@ public class JobService : IJobService
 
     public async Task<BatchJobResultDto> BatchAsync(string schedulerName, BatchJobRequest request)
     {
+        using var activity = QapTelemetry.ActivitySource.StartActivity("qap.job.batch");
+        activity?.SetTag("action", request.Action);
+        activity?.SetTag("scheduler.name", schedulerName);
+        activity?.SetTag("total", request.JobKeys.Count);
+
         var result = new BatchJobResultDto { Total = request.JobKeys.Count };
 
         foreach (var jobKey in request.JobKeys)
@@ -389,6 +416,13 @@ public class JobService : IJobService
 
         _logger.LogInformation("Batch {Action} completed on {SchedulerName}: {Successes}/{Total} succeeded",
             request.Action, schedulerName, result.Successes, result.Total);
+
+        QapTelemetry.BatchOperations.Add(1,
+            new KeyValuePair<string, object?>("action", request.Action),
+            new KeyValuePair<string, object?>("scheduler.name", schedulerName));
+
+        activity?.SetTag("successes", result.Successes);
+        activity?.SetTag("failures", result.Failures);
 
         return result;
     }

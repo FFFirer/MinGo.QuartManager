@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.Data.Entities;
+using MinGo.Qap.Shared;
 using MinGo.Qap.Shared.Models;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -35,6 +37,8 @@ public class AgentService
     /// </summary>
     public async Task<RegisterAgentResponse> RegisterAsync(RegisterAgentRequest request, string token)
     {
+        using var activity = QapTelemetry.ActivitySource.StartActivity("qap.agent.register");
+
         // 如果提供了 AgentId，尝试重连
         if (!string.IsNullOrEmpty(request.AgentId))
         {
@@ -44,6 +48,8 @@ public class AgentService
             if (existingAgent != null)
             {
                 // 重连：更新 Agent 信息
+                activity?.SetTag("is_reconnect", true);
+                activity?.SetTag("agent.id", existingAgent.Id);
                 return await ReconnectAsync(existingAgent, request, token);
             }
             else
@@ -53,6 +59,7 @@ public class AgentService
         }
 
         // 首次注册
+        activity?.SetTag("is_reconnect", false);
         return await RegisterNewAsync(request, token);
     }
 
@@ -82,6 +89,9 @@ public class AgentService
 
         _logger.LogInformation("Agent registered: {AgentId} at {Url}", agentId, request.Url);
 
+        QapTelemetry.AgentRegistrations.Add(1,
+            new KeyValuePair<string, object?>("type", "new"));
+
         return new RegisterAgentResponse
         {
             AgentId = agentId,
@@ -109,6 +119,9 @@ public class AgentService
 
         _logger.LogInformation("Agent reconnected: {AgentId} at {Url}", agent.Id, request.Url);
 
+        QapTelemetry.AgentRegistrations.Add(1,
+            new KeyValuePair<string, object?>("type", "reconnect"));
+
         return new RegisterAgentResponse
         {
             AgentId = agent.Id,
@@ -134,6 +147,10 @@ public class AgentService
         agent.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync();
+
+        QapTelemetry.AgentHeartbeats.Add(1,
+            new KeyValuePair<string, object?>("agent.id", agentId));
+
         return true;
     }
 

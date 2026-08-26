@@ -32,4 +32,9 @@ public interface IManifestCacheService
     /// 批量清除多个 Scheduler 的 Manifest 缓存。
     /// </summary>
     void InvalidateForSchedulers(IEnumerable<string> schedulerNames);
+
+    /// <summary>
+    /// 获取当前缓存条目数（用于 OTel Gauge 指标）。
+    /// </summary>
+    int Count { get; }
 }

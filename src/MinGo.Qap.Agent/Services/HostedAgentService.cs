@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using MinGo.Qap.Agent.Configuration;
+using MinGo.Qap.Shared;
 using MinGo.Qap.Shared.Models;
 
 namespace MinGo.Qap.Agent.Services;
@@ -288,6 +289,7 @@ public class HostedAgentService : BackgroundService
             };
 
             var httpClient = httpClientFactory.CreateClient("PlatformApi");
+            var sw = Stopwatch.StartNew();
             var response = await httpClient.PostAsJsonAsync(
                 $"{_registrationInfo.PlatformApiBaseUrl.TrimEnd('/')}/api/agents/{_registrationInfo.AgentId}/heartbeat",
                 heartbeatRequest,
@@ -296,6 +298,12 @@ public class HostedAgentService : BackgroundService
 
             if (response.IsSuccessStatusCode)
             {
+                sw.Stop();
+                QapTelemetry.HeartbeatsSent.Add(1,
+                    new KeyValuePair<string, object?>("agent.id", _registrationInfo.AgentId));
+                QapTelemetry.HeartbeatDuration.Record(sw.Elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>("agent.id", _registrationInfo.AgentId));
+
                 var heartbeatResponse = await response.Content.ReadFromApiResponseAsync<AgentHeartbeatResponseV2>(MinGoJsonDefaults.Options, cancellationToken);
                 _logger.LogDebug("Heartbeat sent successfully to agent {AgentId}", _registrationInfo.AgentId);
                 _consecutiveHeartbeatFailures = 0;
@@ -320,6 +328,8 @@ public class HostedAgentService : BackgroundService
             else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
                      response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
+                QapTelemetry.HeartbeatsFailed.Add(1,
+                    new KeyValuePair<string, object?>("agent.id", _registrationInfo.AgentId));
                 var error = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogWarning("Heartbeat failed with {StatusCode}: {Error}. Registration may be invalid. Triggering re-registration.",
                     response.StatusCode, error);
@@ -328,6 +338,8 @@ public class HostedAgentService : BackgroundService
             }
             else
             {
+                QapTelemetry.HeartbeatsFailed.Add(1,
+                    new KeyValuePair<string, object?>("agent.id", _registrationInfo.AgentId));
                 var error = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogWarning("Heartbeat failed: {StatusCode} - {Error}", response.StatusCode, error);
                 HandleHeartbeatFailure(cancellationToken);
@@ -335,6 +347,8 @@ public class HostedAgentService : BackgroundService
         }
         catch (HttpRequestException ex)
         {
+            QapTelemetry.HeartbeatsFailed.Add(1,
+                new KeyValuePair<string, object?>("agent.id", _registrationInfo?.AgentId ?? "unknown"));
             _logger.LogError(ex, "Network error while sending heartbeat to platform");
             HandleHeartbeatFailure(cancellationToken);
         }
@@ -419,6 +433,9 @@ public class HostedAgentService : BackgroundService
     {
         _logger.LogInformation("Starting re-registration...");
         _isRegistered = false;
+
+        QapTelemetry.ReRegistrations.Add(1,
+            new KeyValuePair<string, object?>("agent.id", _registrationInfo?.AgentId ?? "unknown"));
 
         var config = _options.Value;
         var maxAttempts = config.Agent.RegistrationMaxAttempts;
