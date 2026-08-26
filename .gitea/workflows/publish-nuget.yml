@@ -45,8 +45,13 @@ jobs:
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
           echo "Extracted version: ${VERSION}"
 
-      - name: Pack NuGet package
+      - name: Pack NuGet packages
         run: |
+          dotnet pack src/MinGo.Qap.Shared/MinGo.Qap.Shared.csproj \
+            -c Release \
+            -p:PackageVersion=${{ env.VERSION }} \
+            -o ./nupkg
+
           dotnet pack src/MinGo.Qap.Agent/MinGo.Qap.Agent.csproj \
             -c Release \
             -p:PackageVersion=${{ env.VERSION }} \

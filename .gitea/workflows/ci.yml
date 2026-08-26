@@ -4,13 +4,16 @@ on:
   push:
     branches: [ '*' ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
 
 env:
   DOTNET_VERSION: '10.0'
 
 jobs:
-  build:
+  # ===========================================================================
+  # .NET 全项目编译验证
+  # ===========================================================================
+  dotnet-build:
     runs-on: ubuntu-latest
 
     steps:
@@ -23,10 +26,36 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Restore dependencies
-        run: dotnet restore src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj
+        run: dotnet restore
 
-      - name: Build
-        run: dotnet build src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj --no-restore
+      - name: Build (all projects)
+        run: dotnet build --no-restore --verbosity normal
 
-      - name: Run tests
-        run: dotnet test src/MinGo.Qap.Platform/MinGo.Qap.Platform.csproj --no-build --verbosity normal
+  # ===========================================================================
+  # 前端编译验证
+  # ===========================================================================
+  ui-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/MinGo.Qap.UI
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check + Build
+        run: pnpm build

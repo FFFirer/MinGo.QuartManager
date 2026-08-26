@@ -30,6 +30,10 @@ services:
       - Heartbeat__TimeoutWarningSeconds=${HEARTBEAT_WARNING:-60}
       - Heartbeat__TimeoutOfflineSeconds=${HEARTBEAT_OFFLINE:-90}
 
+      # OpenTelemetry (可选，配置后启用 OTLP 导出)
+      - OpenTelemetry__ServiceName=MinGo.Qap.Platform
+      - OpenTelemetry__OtlpEndpoint=${OTEL_OTLP_ENDPOINT:-}
+
     healthcheck:
       test: ["CMD", "dotnet", "MinGo.Qap.Platform.dll", "--help"]
       interval: 30s

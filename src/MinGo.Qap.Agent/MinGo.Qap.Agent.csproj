@@ -11,9 +11,13 @@
     <Version>1.0.0</Version>
     <Authors>MinGo Team</Authors>
     <Description>Quartz.NET Agent library for MinGo Platform - provides job discovery, scheduling, and logging capabilities</Description>
-    <Readme>README.md</Readme>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
