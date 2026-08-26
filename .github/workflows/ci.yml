@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  DOTNET_VERSION: '10.0'
+
+jobs:
+  # ===========================================================================
+  # .NET 全项目编译验证
+  # ===========================================================================
+  dotnet-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build (all projects)
+        run: dotnet build --no-restore --verbosity normal
+
+  # ===========================================================================
+  # 前端编译验证
+  # ===========================================================================
+  ui-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/MinGo.Qap.UI
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check + Build
+        run: pnpm build

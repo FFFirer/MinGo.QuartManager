@@ -1,0 +1,68 @@
+# =============================================================================
+# MinGo.QuartManager NuGet Publish Pipeline
+#
+# Triggers:
+#   - release (published):  Pack + push Agent NuGet package
+#   - workflow_dispatch:    Pack + push with manual version
+# =============================================================================
+name: Publish NuGet
+
+on:
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'NuGet package version (e.g. 1.2.3)'
+        required: true
+        type: string
+
+env:
+  DOTNET_VERSION: '10.0'
+
+jobs:
+  publish-nuget:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${GITHUB_REF#refs/*/}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "Extracted version: ${VERSION}"
+
+      - name: Pack NuGet packages
+        run: |
+          dotnet pack src/MinGo.Qap.Shared/MinGo.Qap.Shared.csproj \
+            -c Release \
+            -p:PackageVersion=${{ env.VERSION }} \
+            -o ./nupkg
+
+          dotnet pack src/MinGo.Qap.Agent/MinGo.Qap.Agent.csproj \
+            -c Release \
+            -p:PackageVersion=${{ env.VERSION }} \
+            -o ./nupkg
+
+      - name: Push NuGet package
+        env:
+          NUGET_SERVER_URL: ${{ vars.NUGET_SERVER_URL }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push ./nupkg/*.nupkg \
+            --source ${{ env.NUGET_SERVER_URL }} \
+            --api-key ${{ env.NUGET_API_KEY }} \
+            --skip-duplicate
