@@ -3,16 +3,95 @@ using MinGo.Qap.Platform.Caching;
 using MinGo.Qap.Platform.Data;
 using MinGo.Qap.Platform.NSwag;
 using MinGo.Qap.Platform.Services;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 using System.Net.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// =============================================================================
+// 1. Serilog 日志
+// =============================================================================
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .Enrich.WithEnvironmentName()
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
+    .WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{MachineName}/{EnvironmentName}] {Message:lj}{NewLine}{Exception}")
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
+// =============================================================================
+// 2. OpenTelemetry (Traces + Metrics + Logs)
+// =============================================================================
+var otelSection = builder.Configuration.GetSection("OpenTelemetry");
+var serviceName = otelSection["ServiceName"] ?? "MinGo.Qap.Platform";
+var serviceVersion = otelSection["ServiceVersion"] ?? "1.0.0";
+var otlpEndpoint = otelSection["OtlpEndpoint"];
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r
+        .AddService(serviceName: serviceName, serviceVersion: serviceVersion)
+        .AddAttributes(new Dictionary<string, object>
+        {
+            ["deployment.environment"] = builder.Environment.EnvironmentName
+        }))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation(options =>
+            {
+                // 过滤健康检查等噪音请求
+                options.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health");
+            })
+            .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation(options =>
+            {
+                options.SetDbStatementForText = true;
+            });
+
+        if (!string.IsNullOrEmpty(otlpEndpoint))
+            tracing.AddOtlpExporter(opts =>
+            {
+                opts.Endpoint = new Uri(otlpEndpoint);
+                opts.Protocol = OtlpExportProtocol.Grpc;
+            });
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddRuntimeInstrumentation();
+
+        if (!string.IsNullOrEmpty(otlpEndpoint))
+            metrics.AddOtlpExporter(opts =>
+            {
+                opts.Endpoint = new Uri(otlpEndpoint);
+                opts.Protocol = OtlpExportProtocol.Grpc;
+            });
+    });
+
+// OTel Logs: 通过 ILogger 管道导出 (与 Serilog 并行)
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeFormattedMessage = true;
+    logging.IncludeScopes = true;
+
+    if (!string.IsNullOrEmpty(otlpEndpoint))
+        logging.AddOtlpExporter(opts =>
+        {
+            opts.Endpoint = new Uri(otlpEndpoint);
+            opts.Protocol = OtlpExportProtocol.Grpc;
+        });
+});
 
 // 1. 添加 Controllers
 builder.Services.AddControllers();
