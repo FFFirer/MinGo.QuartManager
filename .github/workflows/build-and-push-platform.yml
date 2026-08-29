@@ -23,7 +23,7 @@ env:
   CONTAINER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
   CONTAINER_REGISTRY_USERNAME: ${{ vars.DOCKER_USERNAME }}
   CONTAINER_REGISTRY_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-  IMAGE_NAME: mingogo/quartmanager-platform
+  IMAGE_NAME: mingo/quartzmanager
 
 jobs:
   build-and-push:
