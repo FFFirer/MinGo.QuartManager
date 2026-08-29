@@ -2,11 +2,14 @@
 # MinGo.QuartManager Platform Docker Image Build & Push Pipeline
 #
 # Triggers:
+#   - release (published):  Build + push Docker image on release
 #   - workflow_dispatch:    Build + push Docker image (manual)
 # =============================================================================
 name: Build and Push Platform Image
 
 on:
+  release:
+    types: [ published ]
   workflow_dispatch:
     inputs:
       environment:
@@ -53,6 +56,9 @@ jobs:
         run: |
           if [ "${{ inputs.version }}" != "" ]; then
             VERSION="${{ inputs.version }}"
+          elif [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            VERSION="${VERSION#v}"
           else
             COMMIT_SHA=$(git rev-parse --short HEAD)
             TIMESTAMP=$(date +"%Y%m%d%H%M%S")
