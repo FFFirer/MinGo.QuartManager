@@ -2,8 +2,15 @@
 # MinGo.QuartManager Platform Docker Image Build & Push Pipeline
 #
 # Triggers:
-#   - release (published):  Build + push Docker image on release
-#   - workflow_dispatch:    Build + push Docker image (manual)
+#   - release (published):  Build + push Docker image
+#                           Stable: tag = v1.2.3 → tags: 1.2.3, latest
+#                           Prerelease: tag = v1.2.3-beta.1 → tag: 1.2.3-beta.1
+#   - workflow_dispatch:    Auto-increment dev version from platform-version.txt
+#                           e.g. 1.1.0-build.42 (build number auto-appended)
+#
+# Version independence:
+#   Platform uses platform-version.txt (independent of NuGet's version.txt)
+#   allowing minor version differences between the two artifacts.
 # =============================================================================
 name: Build and Push Platform Image
 
@@ -11,18 +18,6 @@ on:
   release:
     types: [ published ]
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Target deployment environment'
-        type: choice
-        options:
-          - staging
-          - production
-        default: staging
-      version:
-        description: 'Image version tag (optional, auto-generated if empty)'
-        type: string
-        required: false
 
 env:
   CONTAINER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
@@ -31,9 +26,6 @@ env:
   IMAGE_NAME: mingogo/quartmanager-platform
 
 jobs:
-  # ===========================================================================
-  # Job 1: Build Docker image and push to registry
-  # ===========================================================================
   build-and-push:
     runs-on: ubuntu-latest
 
@@ -51,21 +43,44 @@ jobs:
           username: ${{ env.CONTAINER_REGISTRY_USERNAME }}
           password: ${{ env.CONTAINER_REGISTRY_PASSWORD }}
 
-      - name: Extract version from tag
-        id: extract_version
+      # -------------------------------------------------------------------------
+      # Version computation:
+      #   release event  → strip tag prefix (v1.2.3 → 1.2.3)
+      #   manual trigger → read platform-version.txt, append -build.{run_number}
+      # Prerelease detection:
+      #   release event  → github.event.release.prerelease
+      #   manual trigger → always treated as prerelease (dev build)
+      # Tag strategy:
+      #   stable     → {version} + latest
+      #   prerelease → {version}-build.{run_number} (no latest tag)
+      # -------------------------------------------------------------------------
+      - name: Compute version and tags
+        id: version
         run: |
-          if [ "${{ inputs.version }}" != "" ]; then
-            VERSION="${{ inputs.version }}"
-          elif [ "${{ github.event_name }}" == "release" ]; then
+          TAGS="${{ env.CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:placeholder"
+
+          if [ "${{ github.event_name }}" == "release" ]; then
             VERSION="${GITHUB_REF#refs/tags/}"
             VERSION="${VERSION#v}"
+            IS_PRERELEASE="${{ github.event.release.prerelease }}"
+            echo "Mode: release → ${VERSION} (prerelease=${IS_PRERELEASE})"
           else
-            COMMIT_SHA=$(git rev-parse --short HEAD)
-            TIMESTAMP=$(date +"%Y%m%d%H%M%S")
-            VERSION="dev-${COMMIT_SHA}-${TIMESTAMP}"
+            BASE_VERSION=$(cat platform-version.txt | tr -d '[:space:]')
+            VERSION="${BASE_VERSION}-build.${GITHUB_RUN_NUMBER}"
+            IS_PRERELEASE="true"
+            echo "Mode: dev build → ${VERSION}"
           fi
+
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
-          echo "Extracted version: ${VERSION}"
+          echo "IS_PRERELEASE=${IS_PRERELEASE}" >> $GITHUB_ENV
+
+          # Build tag list
+          TAGS="${{ env.CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}"
+          if [ "${IS_PRERELEASE}" != "true" ]; then
+            TAGS="${TAGS},${{ env.CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          fi
+          echo "TAGS=${TAGS}" >> $GITHUB_ENV
+          echo "Computed tags: ${TAGS}"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -73,6 +88,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: |
-            ${{ env.CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
-            ${{ env.CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          tags: ${{ env.TAGS }}

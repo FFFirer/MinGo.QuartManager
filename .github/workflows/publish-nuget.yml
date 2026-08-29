@@ -2,8 +2,11 @@
 # MinGo.QuartManager NuGet Publish Pipeline
 #
 # Triggers:
-#   - release (published):  Pack + push Agent NuGet package
-#   - workflow_dispatch:    Pack + push with manual version
+#   - release (published):  Pack + push NuGet packages
+#                           Stable: tag = v1.2.3 → 1.2.3
+#                           Prerelease: tag = v1.2.3-beta.1 → 1.2.3-beta.1
+#   - workflow_dispatch:    Auto-increment dev version from version.txt
+#                           e.g. 1.1.0-dev.42 (build number auto-appended)
 # =============================================================================
 name: Publish NuGet
 
@@ -11,11 +14,6 @@ on:
   release:
     types: [ published ]
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'NuGet package version (e.g. 1.2.3)'
-        required: true
-        type: string
 
 env:
   DOTNET_VERSION: '10.0'
@@ -33,17 +31,25 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Extract version
+      # -------------------------------------------------------------------------
+      # Version computation:
+      #   release event  → strip tag prefix (v1.2.3 → 1.2.3, v1.2.3-beta.1 → 1.2.3-beta.1)
+      #   manual trigger → read version.txt, append -dev.{run_number}
+      # -------------------------------------------------------------------------
+      - name: Compute version
         id: version
         run: |
           if [ "${{ github.event_name }}" == "release" ]; then
-            VERSION="${GITHUB_REF#refs/*/}"
+            VERSION="${GITHUB_REF#refs/tags/}"
             VERSION="${VERSION#v}"
+            echo "Mode: release → ${VERSION}"
           else
-            VERSION="${{ inputs.version }}"
+            BASE_VERSION=$(cat version.txt | tr -d '[:space:]')
+            VERSION="${BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}"
+            echo "Mode: dev build → ${VERSION}"
           fi
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
-          echo "Extracted version: ${VERSION}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Pack NuGet packages
         run: |

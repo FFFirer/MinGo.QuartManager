@@ -7,7 +7,7 @@
 
     <!-- NuGet Package Metadata -->
     <PackageId>MinGo.Qap.Shared</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Authors>MinGo Team</Authors>
     <Description>Shared DTOs and models for MinGo Qap Platform and Agent - provides common data contracts for job scheduling and execution logging</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
